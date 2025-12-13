@@ -1,25 +1,22 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-# CORREÇÃO AQUI: Importamos apenas o AstrologicalSubject do pacote principal
 from kerykeion import AstrologicalSubject
 from kerykeion.charts.chart_drawer import ChartDrawer
-from kerykeion.charts.chart_data_factory import ChartDataFactory
 from geopy.geocoders import Nominatim
 from pathlib import Path
 import os
 
 app = FastAPI(title="API Astrologia VibraEu")
 
-# 1. Configurar Pastas
+# Configurar Pastas
 PASTA_IMAGENS = "mapas_gerados"
 os.makedirs(PASTA_IMAGENS, exist_ok=True)
 app.mount("/imagens", StaticFiles(directory=PASTA_IMAGENS), name="imagens")
 
-# 2. Configurar Geolocalização
+# Configurar Geolocalização
 geolocator = Nominatim(user_agent="vibraeu_astrologia_app_v5")
 
-# --- MODELOS ---
 class Pessoa(BaseModel):
     nome: str
     ano: int
@@ -34,16 +31,12 @@ class DadosSinastria(BaseModel):
     pessoa1: Pessoa
     pessoa2: Pessoa
 
-# --- FUNÇÕES ---
 def criar_sujeito(dados: Pessoa):
-    """Cria o objeto da pessoa buscando a latitude/longitude"""
     try:
-        # Busca lat/long
         loc = geolocator.geocode(f"{dados.cidade}, {dados.pais}")
         if not loc:
             raise ValueError(f"Cidade não encontrada: {dados.cidade}")
         
-        # Cria o sujeito (Nova sintaxe V5)
         return AstrologicalSubject(
             dados.nome,
             dados.ano, dados.mes, dados.dia,
@@ -58,25 +51,16 @@ def criar_sujeito(dados: Pessoa):
         print(f"Erro ao criar sujeito: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-# --- ROTAS ---
-
 @app.post("/mapa-natal")
 async def gerar_natal(dados: Pessoa):
-    """Gera Mapa Astral"""
     try:
         sujeito = criar_sujeito(dados)
-        
-        # Nome do arquivo seguro
         nome_safe = "".join([c for c in dados.nome if c.isalnum() or c==' ']).replace(" ", "_")
         nome_arquivo = f"Natal_{nome_safe}"
         
-        # Gera o Desenho
-        # chart_language="PT" garante que venha em Português
         drawer = ChartDrawer(sujeito, chart_language="PT")
         drawer.save_svg(output_directory=PASTA_IMAGENS, filename=nome_arquivo)
         
-        # Pega os dados dos planetas
-        # Na v5, os dados ficam acessíveis diretamente nos atributos
         planetas_formatados = []
         lista_corpos = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
         
@@ -93,31 +77,22 @@ async def gerar_natal(dados: Pessoa):
         return {
             "tipo": "Natal",
             "url_imagem": f"/imagens/{nome_arquivo}.svg",
-            "dados_planetas": planetas_formatados,
-            "signo_solar": sujeito.sun["sign"],
-            "ascendente": sujeito.first_house["sign"]
+            "dados_planetas": planetas_formatados
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/mapa-sinastria")
 async def gerar_sinastria(dados: DadosSinastria):
-    """Gera Sinastria (Compatibilidade)"""
     p1 = criar_sujeito(dados.pessoa1)
     p2 = criar_sujeito(dados.pessoa2)
-    
     nome_arquivo = f"Sinastria_{dados.pessoa1.nome}_{dados.pessoa2.nome}".replace(" ", "_")
     
-    # Desenha Sinastria
     drawer = ChartDrawer(p1, chart_type="Synastry", chart_language="PT", second_obj=p2)
     drawer.save_svg(output_directory=PASTA_IMAGENS, filename=nome_arquivo)
     
-    return {
-        "tipo": "Sinastria",
-        "url_imagem": f"/imagens/{nome_arquivo}.svg",
-        "info": "Mapa gerado com sucesso."
-    }
+    return {"tipo": "Sinastria", "url_imagem": f"/imagens/{nome_arquivo}.svg"}
 
 @app.get("/")
 def home():
-    return {"status": "online", "versao": "5.0", "mensagem": "Use /docs para testar"}
+    return {"status": "online", "metodo": "docker", "mensagem": "API Rodando via Docker!"}
