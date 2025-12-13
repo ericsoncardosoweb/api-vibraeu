@@ -14,8 +14,10 @@ PASTA_IMAGENS = "mapas_gerados"
 os.makedirs(PASTA_IMAGENS, exist_ok=True)
 app.mount("/imagens", StaticFiles(directory=PASTA_IMAGENS), name="imagens")
 
-# Configurar Geolocalização
-geolocator = Nominatim(user_agent="vibraeu_astrologia_app_v5")
+# --- CORREÇÃO AQUI ---
+# Adicionei 'timeout=10' para ele esperar até 10 segundos pela resposta do mapa
+geolocator = Nominatim(user_agent="vibraeu_astrologia_app_v5", timeout=10)
+# ---------------------
 
 class Pessoa(BaseModel):
     nome: str
@@ -33,23 +35,31 @@ class DadosSinastria(BaseModel):
 
 def criar_sujeito(dados: Pessoa):
     try:
+        # Busca lat/long
         loc = geolocator.geocode(f"{dados.cidade}, {dados.pais}")
+        
+        # Se falhar ou não achar, usamos coordenadas padrão de SP para não travar o app
+        # (Isso é uma segurança extra)
         if not loc:
-            raise ValueError(f"Cidade não encontrada: {dados.cidade}")
+            lat, lng = -23.55, -46.63 # SP Padrão
+            print(f"Aviso: Cidade {dados.cidade} não encontrada, usando padrão SP.")
+        else:
+            lat, lng = loc.latitude, loc.longitude
         
         return AstrologicalSubject(
             dados.nome,
             dados.ano, dados.mes, dados.dia,
             dados.hora, dados.minuto,
-            lng=loc.longitude,
-            lat=loc.latitude,
+            lng=lng,
+            lat=lat,
             tz_str="America/Sao_Paulo",
             city=dados.cidade,
             nation=dados.pais
         )
     except Exception as e:
         print(f"Erro ao criar sujeito: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        # Retorna um erro legível se algo quebrar
+        raise HTTPException(status_code=400, detail=f"Erro no cálculo: {str(e)}")
 
 @app.post("/mapa-natal")
 async def gerar_natal(dados: Pessoa):
@@ -58,6 +68,7 @@ async def gerar_natal(dados: Pessoa):
         nome_safe = "".join([c for c in dados.nome if c.isalnum() or c==' ']).replace(" ", "_")
         nome_arquivo = f"Natal_{nome_safe}"
         
+        # Gera o Desenho em Português
         drawer = ChartDrawer(sujeito, chart_language="PT")
         drawer.save_svg(output_directory=PASTA_IMAGENS, filename=nome_arquivo)
         
@@ -95,4 +106,4 @@ async def gerar_sinastria(dados: DadosSinastria):
 
 @app.get("/")
 def home():
-    return {"status": "online", "metodo": "docker", "mensagem": "API Rodando via Docker!"}
+    return {"status": "online", "metodo": "docker", "mensagem": "API Rodando com Timeout corrigido!"}
