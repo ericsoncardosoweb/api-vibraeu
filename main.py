@@ -9,7 +9,7 @@ import os
 
 app = FastAPI(title="API Astrologia VibraEu")
 
-# Configurar Pastas
+# Configurar Pastas para salvar as imagens
 PASTA_IMAGENS = "mapas_gerados"
 os.makedirs(PASTA_IMAGENS, exist_ok=True)
 app.mount("/imagens", StaticFiles(directory=PASTA_IMAGENS), name="imagens")
@@ -35,14 +35,14 @@ class DadosSinastria(BaseModel):
 
 def criar_sujeito(dados: Pessoa):
     try:
-        # Busca lat/long
+        # Busca lat/long com paciência (timeout de 10s)
         loc = geolocator.geocode(f"{dados.cidade}, {dados.pais}")
         
         # Se falhar ou não achar, usamos coordenadas padrão de SP para não travar o app
-        # (Isso é uma segurança extra)
+        # Isso evita que o app quebre se o serviço de mapas estiver fora do ar
         if not loc:
             lat, lng = -23.55, -46.63 # SP Padrão
-            print(f"Aviso: Cidade {dados.cidade} não encontrada, usando padrão SP.")
+            print(f"Aviso: Cidade {dados.cidade} não encontrada ou serviço lento. Usando padrão SP.")
         else:
             lat, lng = loc.latitude, loc.longitude
         
@@ -65,6 +65,8 @@ def criar_sujeito(dados: Pessoa):
 async def gerar_natal(dados: Pessoa):
     try:
         sujeito = criar_sujeito(dados)
+        
+        # Cria um nome de arquivo seguro (sem acentos ou espaços)
         nome_safe = "".join([c for c in dados.nome if c.isalnum() or c==' ']).replace(" ", "_")
         nome_arquivo = f"Natal_{nome_safe}"
         
@@ -88,7 +90,9 @@ async def gerar_natal(dados: Pessoa):
         return {
             "tipo": "Natal",
             "url_imagem": f"/imagens/{nome_arquivo}.svg",
-            "dados_planetas": planetas_formatados
+            "dados_planetas": planetas_formatados,
+            "signo_solar": sujeito.sun["sign"],
+            "ascendente": sujeito.first_house["sign"]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
