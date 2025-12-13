@@ -174,4 +174,4 @@ async def gerar_transito(dados: DadosTransito):
 
 @app.get("/")
 def home():
-    return {"status": "online", "versao": "Factory Pattern", "mensagem": "API Atualizada conforme Documentação Oficial!"}
+    return {"status": "online", "versao": "Factory Pattern", "mensagem": "API Atualizada conforme Documentação Oficial! v1"}
