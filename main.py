@@ -43,6 +43,7 @@ def criar_sujeito(dados: Pessoa):
         else:
             lat, lng = loc.latitude, loc.longitude
         
+        # Factory padrão da V5
         return AstrologicalSubjectFactory.from_birth_data(
             name=dados.nome,
             year=dados.ano, month=dados.mes, day=dados.dia,
@@ -60,10 +61,10 @@ def criar_sujeito(dados: Pessoa):
 @app.post("/mapa-natal")
 async def gerar_natal(dados: Pessoa):
     try:
-        # 1. Cria o Sujeito (Cálculos Astronômicos)
+        # 1. Cria o Sujeito
         sujeito = criar_sujeito(dados)
         
-        # 2. Gera os Dados do Gráfico (Aspectos e posições visuais)
+        # 2. Gera os Dados do Gráfico
         chart_data = ChartDataFactory.create_natal_chart_data(sujeito)
         
         # 3. Desenha e Salva
@@ -71,22 +72,17 @@ async def gerar_natal(dados: Pessoa):
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
         drawer.save_svg(output_path=Path(PASTA_IMAGENS), filename=nome_arquivo)
         
-        # --- EXTRAÇÃO DE DADOS DETALHADOS PARA JSON ---
+        # --- EXTRAÇÃO DE DADOS (CORRIGIDA) ---
         
-        # A. Planetas (Extraindo do objeto 'sujeito')
-        # Lista de corpos que queremos retornar
+        # A. Planetas
         lista_corpos = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", 
                         "Saturn", "Uranus", "Neptune", "Pluto", "Chiron", 
                         "North_Node", "South_Node", "Lilith"]
         
         dados_planetas = []
         for nome_corpo in lista_corpos:
-            # Tenta pegar o atributo (ex: sujeito.sun, sujeito.moon)
-            # O getattr pega o atributo pelo nome em minúsculo (ex: "sun")
-            obj = getattr(sujeito, nome_corpo.lower(), None)
-            
+            obj = getattr(sujeito, nome_corpo.lower(), None) # Pega sun, moon, etc.
             if obj:
-                # O método .model_dump() converte o objeto do Kerykeion em um dicionário puro
                 info = obj.model_dump()
                 dados_planetas.append({
                     "planeta": info.get("name"),
@@ -99,22 +95,28 @@ async def gerar_natal(dados: Pessoa):
                     "emoji": info.get("emoji")
                 })
 
-        # B. Casas (Cúspides)
+        # B. Casas (CORREÇÃO AQUI: Lista Manual de Atributos)
+        # Na V5 não existe houses_list, então acessamos um por um
+        lista_casas_attr = ["first_house", "second_house", "third_house", "fourth_house", 
+                            "fifth_house", "sixth_house", "seventh_house", "eighth_house", 
+                            "ninth_house", "tenth_house", "eleventh_house", "twelfth_house"]
+        
         dados_casas = []
-        for casa in sujeito.houses_list:
-            info = casa.model_dump()
-            dados_casas.append({
-                "casa": info.get("name"),
-                "signo": info.get("sign"),
-                "grau": info.get("position")
-            })
+        for nome_attr in lista_casas_attr:
+            casa_obj = getattr(sujeito, nome_attr, None)
+            if casa_obj:
+                info = casa_obj.model_dump()
+                dados_casas.append({
+                    "casa": info.get("name"),
+                    "signo": info.get("sign"),
+                    "grau": info.get("position"),
+                    "grau_absoluto": info.get("abs_pos")
+                })
 
-        # C. Aspectos (Extraindo do chart_data)
-        # chart_data.aspects geralmente é uma lista de objetos de aspecto
+        # C. Aspectos
         dados_aspectos = []
         if hasattr(chart_data, "aspects"):
             for aspecto in chart_data.aspects:
-                # Verifica se é um objeto Pydantic ou dicionário
                 if hasattr(aspecto, "model_dump"):
                     a_info = aspecto.model_dump()
                 else:
@@ -123,7 +125,7 @@ async def gerar_natal(dados: Pessoa):
                 dados_aspectos.append({
                     "p1": a_info.get("p1_name"),
                     "p2": a_info.get("p2_name"),
-                    "tipo": a_info.get("aspect"), # Ex: Conjunction, Opposition
+                    "tipo": a_info.get("aspect"),
                     "orbe": a_info.get("orb")
                 })
 
@@ -131,7 +133,7 @@ async def gerar_natal(dados: Pessoa):
             "status": "sucesso",
             "tipo": "Natal",
             "url_imagem": f"/imagens/{nome_arquivo}.svg",
-            "interpretacao": {
+            "interpretacao_rapida": {
                 "sol": sujeito.sun.sign,
                 "ascendente": sujeito.first_house.sign,
                 "lua": sujeito.moon.sign
@@ -144,7 +146,6 @@ async def gerar_natal(dados: Pessoa):
         }
 
     except Exception as e:
-        # Imprime o erro no log para ajudar a debugar se algo falhar
         print(f"Erro detalhado: {e}") 
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -154,22 +155,20 @@ async def gerar_sinastria(dados: DadosSinastria):
         p1 = criar_sujeito(dados.pessoa1)
         p2 = criar_sujeito(dados.pessoa2)
         
-        # Gera dados de Sinastria
         chart_data = ChartDataFactory.create_synastry_chart_data(p1, p2)
         
         nome_arquivo = f"Sinastria_{dados.pessoa1.nome}_{dados.pessoa2.nome}".replace(" ", "_")
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
         drawer.save_svg(output_path=Path(PASTA_IMAGENS), filename=nome_arquivo)
         
-        # Extrai Aspectos da Sinastria (Interaspectos)
         aspectos_sinastria = []
         if hasattr(chart_data, "aspects"):
             for aspecto in chart_data.aspects:
                 if hasattr(aspecto, "model_dump"):
                     a_info = aspecto.model_dump()
                     aspectos_sinastria.append({
-                        "planeta_pessoa_1": a_info.get("p1_name"),
-                        "planeta_pessoa_2": a_info.get("p2_name"),
+                        "planeta_1": a_info.get("p1_name"),
+                        "planeta_2": a_info.get("p2_name"),
                         "aspecto": a_info.get("aspect"),
                         "orbe": a_info.get("orb")
                     })
@@ -177,11 +176,11 @@ async def gerar_sinastria(dados: DadosSinastria):
         return {
             "tipo": "Sinastria",
             "url_imagem": f"/imagens/{nome_arquivo}.svg",
-            "aspectos_relacionamento": aspectos_sinastria
+            "aspectos": aspectos_sinastria
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 def home():
-    return {"status": "online", "versao": "5.0 - Full Data", "mensagem": "API retornando JSON detalhado!"}
+    return {"status": "online", "versao": "5.0 Corrigida", "mensagem": "JSON Detalhado Funcionando!"}
