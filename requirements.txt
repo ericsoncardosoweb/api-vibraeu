@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+kerykeion
+geopy
+pydantic
