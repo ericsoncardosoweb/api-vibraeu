@@ -17,13 +17,13 @@ app = FastAPI(title="API Astrologia VibraEu - Multi Rotas")
 
 # --- CONFIGURAÇÕES ---
 PASTA_IMAGENS = "mapas_gerados"
-PASTA_AVATARS = "uploads/avatars"
+PASTA_AVATARS = "avatars"  # Simplificado para evitar conflitos
 os.makedirs(PASTA_IMAGENS, exist_ok=True)
 os.makedirs(PASTA_AVATARS, exist_ok=True)
 
 # Montar pastas estáticas
 app.mount("/imagens", StaticFiles(directory=PASTA_IMAGENS), name="imagens")
-app.mount("/uploads/avatars", StaticFiles(directory=PASTA_AVATARS), name="avatars")
+app.mount("/avatars", StaticFiles(directory=PASTA_AVATARS), name="avatars")
 
 # Timeout aumentado para garantir que o OSM responda
 geolocator = Nominatim(user_agent="vibraeu_astrologia_v6", timeout=15)
@@ -321,7 +321,7 @@ async def upload_avatar(
             f.write(contents)
         
         # URL pública
-        public_url = f"https://api.vibraeu.com.br/uploads/avatars/{filename}"
+        public_url = f"https://api.vibraeu.com.br/avatars/{filename}"
         
         return {"success": True, "url": public_url, "filename": filename}
     
