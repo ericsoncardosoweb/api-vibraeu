@@ -3,3 +3,4 @@ uvicorn
 kerykeion
 geopy
 pydantic
+python-multipart
