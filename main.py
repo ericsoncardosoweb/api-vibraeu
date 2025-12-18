@@ -300,7 +300,7 @@ async def ceu_de_hoje(local: LocalizacaoHoje):
 
 # --- ROTAS DE UPLOAD E LIMPEZA ---
 
-# ROTA 4: Upload de Avatar
+# ROTA 4: Upload de Avatar (com redimensionamento e compressão)
 @app.post("/upload-avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
@@ -308,27 +308,52 @@ async def upload_avatar(
     type: str = Form(default="avatar")
 ):
     try:
+        from PIL import Image
+        from io import BytesIO
+        
         # Validar extensão
         ext = file.filename.rsplit('.', 1)[-1].lower()
         if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
             raise HTTPException(status_code=400, detail="Formato não permitido. Use JPG, PNG, GIF ou WebP.")
         
-        # Ler conteúdo e validar tamanho
+        # Ler conteúdo e validar tamanho (antes do processamento)
         contents = await file.read()
-        if len(contents) > 2 * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="Arquivo muito grande. Máximo 2MB.")
+        if len(contents) > 5 * 1024 * 1024:  # Aumentado para 5MB antes do processamento
+            raise HTTPException(status_code=400, detail="Arquivo muito grande. Máximo 5MB.")
+        
+        # Processar imagem com Pillow
+        image = Image.open(BytesIO(contents))
+        
+        # Converter RGBA para RGB (necessário para JPEG)
+        if image.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            background.paste(image, mask=image.split()[-1] if len(image.split()) == 4 else None)
+            image = background
+        
+        # Redimensionar para máximo 600px mantendo proporção
+        max_size = 600
+        if image.width > max_size or image.height > max_size:
+            # Calcula nova dimensão mantendo proporção
+            if image.width > image.height:
+                new_width = max_size
+                new_height = int((max_size / image.width) * image.height)
+            else:
+                new_height = max_size
+                new_width = int((max_size / image.height) * image.width)
+            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         
         # Limpar avatar antigo do usuário
         if user_id and user_id != "unknown":
             limpar_avatars_usuario(user_id)
         
-        # Nome único com user_id
-        filename = f"{user_id}-{uuid.uuid4().hex[:8]}.{ext}"
+        # Nome único com user_id (sempre salvar como JPEG para compressão)
+        filename = f"{user_id}-{uuid.uuid4().hex[:8]}.jpg"
         filepath = os.path.join(PASTA_AVATARS, filename)
         
-        # Salvar
-        with open(filepath, "wb") as f:
-            f.write(contents)
+        # Salvar com compressão (qualidade 85%)
+        image.save(filepath, 'JPEG', quality=85, optimize=True)
         
         # URL pública
         public_url = f"https://api.vibraeu.com.br/avatars/{filename}"
