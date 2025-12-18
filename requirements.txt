@@ -4,3 +4,4 @@ kerykeion
 geopy
 pydantic
 python-multipart
+Pillow
