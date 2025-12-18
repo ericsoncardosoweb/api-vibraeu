@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from kerykeion import AstrologicalSubjectFactory
@@ -14,6 +15,15 @@ from datetime import datetime
 import pytz
 
 app = FastAPI(title="API Astrologia VibraEu - Multi Rotas")
+
+# --- CORS MIDDLEWARE ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permitir todas as origens
+    allow_credentials=True,
+    allow_methods=["*"],  # Permitir todos os métodos
+    allow_headers=["*"],  # Permitir todos os headers
+)
 
 # --- CONFIGURAÇÕES ---
 PASTA_IMAGENS = "mapas_gerados"
