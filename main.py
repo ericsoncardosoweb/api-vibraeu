@@ -13,6 +13,14 @@ import glob
 import uuid
 from datetime import datetime
 import pytz
+import httpx
+
+# --- BUNNY CDN CONFIGURATION ---
+BUNNY_STORAGE_ZONE = os.getenv("BUNNY_STORAGE_ZONE", "vibraeu-storage")
+BUNNY_STORAGE_API_KEY = os.getenv("BUNNY_STORAGE_API_KEY", "f12a564e-13de-42ea-acd4aa5863a8-2806-44eb")
+BUNNY_STORAGE_HOSTNAME = os.getenv("BUNNY_STORAGE_HOSTNAME", "br.storage.bunnycdn.com")
+BUNNY_CDN_URL = os.getenv("BUNNY_CDN_URL", "https://vibraeu.b-cdn.net")
+BUNNY_ENABLED = os.getenv("BUNNY_ENABLED", "true").lower() == "true"
 
 app = FastAPI(title="API Astrologia VibraEu - Multi Rotas")
 
@@ -66,6 +74,34 @@ def limpar_mapas_usuario(user_id: str):
 def limpar_avatars_usuario(user_id: str):
     """Remove todos os avatars de um usuário"""
     return limpar_arquivos_usuario(PASTA_AVATARS, user_id)
+
+# --- BUNNY CDN UPLOAD FUNCTION ---
+async def upload_to_bunny(file_content: bytes, filename: str, path: str = "avatars") -> dict:
+    """
+    Upload a file to Bunny CDN Storage.
+    Returns dict with success status and CDN URL.
+    """
+    try:
+        full_path = f"{path}/{filename}" if path else filename
+        url = f"https://{BUNNY_STORAGE_HOSTNAME}/{BUNNY_STORAGE_ZONE}/{full_path}"
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.put(
+                url,
+                content=file_content,
+                headers={
+                    "AccessKey": BUNNY_STORAGE_API_KEY,
+                    "Content-Type": "application/octet-stream",
+                }
+            )
+            response.raise_for_status()
+        
+        cdn_url = f"{BUNNY_CDN_URL}/{full_path}"
+        print(f"[Bunny CDN] Upload success: {cdn_url}")
+        return {"success": True, "cdn_url": cdn_url}
+    except Exception as e:
+        print(f"[Bunny CDN] Upload failed: {e}")
+        return {"success": False, "error": str(e)}
 
 def limpar_tudo_usuario(user_id: str):
     """Remove todos os arquivos de um usuário (mapas + avatars)"""
@@ -300,7 +336,7 @@ async def ceu_de_hoje(local: LocalizacaoHoje):
 
 # --- ROTAS DE UPLOAD E LIMPEZA ---
 
-# ROTA 4: Upload de Avatar (com redimensionamento e compressão)
+# ROTA 4: Upload de Avatar (com redimensionamento e compressão + Bunny CDN)
 @app.post("/upload-avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
@@ -344,21 +380,44 @@ async def upload_avatar(
                 new_width = int((max_size / image.height) * image.width)
             image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         
-        # Limpar avatar antigo do usuário
+        # Limpar avatar antigo do usuário (local)
         if user_id and user_id != "unknown":
             limpar_avatars_usuario(user_id)
         
         # Nome único com user_id (sempre salvar como JPEG para compressão)
         filename = f"{user_id}-{uuid.uuid4().hex[:8]}.jpg"
-        filepath = os.path.join(PASTA_AVATARS, filename)
         
-        # Salvar com compressão (qualidade 85%)
-        image.save(filepath, 'JPEG', quality=85, optimize=True)
+        # Converter imagem para bytes
+        buffer = BytesIO()
+        image.save(buffer, 'JPEG', quality=85, optimize=True)
+        processed_bytes = buffer.getvalue()
         
-        # URL pública
-        public_url = f"https://api.vibraeu.com.br/avatars/{filename}"
+        # ESTRATÉGIA: Tentar Bunny CDN primeiro, fallback para local
+        public_url = None
+        storage_type = "local"
         
-        return {"success": True, "url": public_url, "filename": filename}
+        if BUNNY_ENABLED:
+            bunny_result = await upload_to_bunny(processed_bytes, filename, "avatars")
+            if bunny_result["success"]:
+                public_url = bunny_result["cdn_url"]
+                storage_type = "bunny_cdn"
+                print(f"[Upload] Avatar salvo no Bunny CDN: {public_url}")
+        
+        # Fallback para local se Bunny falhou ou está desabilitado
+        if not public_url:
+            filepath = os.path.join(PASTA_AVATARS, filename)
+            with open(filepath, "wb") as f:
+                f.write(processed_bytes)
+            public_url = f"https://api.vibraeu.com.br/avatars/{filename}"
+            storage_type = "local"
+            print(f"[Upload] Avatar salvo localmente: {public_url}")
+        
+        return {
+            "success": True, 
+            "url": public_url, 
+            "filename": filename,
+            "storage": storage_type
+        }
     
     except HTTPException:
         raise
