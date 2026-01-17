@@ -235,7 +235,7 @@ async def natal_lat_long(dados: PessoaLL):
         
         # Gerar SVG em memória
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
-        svg_string = drawer.makeTemplate()
+        svg_string = drawer.makeSVG()
         svg_bytes = svg_string.encode('utf-8')
         
         # ESTRATÉGIA: Tentar Bunny CDN primeiro, fallback para local
@@ -308,7 +308,7 @@ async def natal_busca_cidade(dados: PessoaOSM):
         
         # Gerar SVG em memória
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
-        svg_string = drawer.makeTemplate()
+        svg_string = drawer.makeSVG()
         svg_bytes = svg_string.encode('utf-8')
         
         # ESTRATÉGIA: Tentar Bunny CDN primeiro, fallback para local
@@ -374,7 +374,7 @@ async def ceu_de_hoje(local: LocalizacaoHoje):
         
         # Gerar SVG em memória
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
-        svg_string = drawer.makeTemplate()
+        svg_string = drawer.makeSVG()
         svg_bytes = svg_string.encode('utf-8')
         
         # ESTRATÉGIA: Tentar Bunny CDN primeiro, fallback para local
