@@ -215,8 +215,6 @@ def extrair_dados_tecnicos(sujeito, chart_data):
 @app.post("/natal-ll")
 async def natal_lat_long(dados: PessoaLL):
     try:
-        from io import StringIO
-        
         sujeito = gerar_sujeito_final(
             dados.nome, dados.ano, dados.mes, dados.dia, dados.hora, dados.minuto,
             dados.latitude, dados.longitude, dados.cidade_label, dados.pais_label
@@ -229,34 +227,39 @@ async def natal_lat_long(dados: PessoaLL):
         if dados.user_id:
             # Limpar mapa antigo do usuário antes de criar novo (local)
             limpar_arquivos_usuario(PASTA_IMAGENS, dados.user_id, "Natal_LL_")
-            nome_arquivo = f"Natal_LL_{nome_seguro}_{dados.user_id}.svg"
+            nome_arquivo_base = f"Natal_LL_{nome_seguro}_{dados.user_id}"
         else:
-            nome_arquivo = f"Natal_LL_{nome_seguro}_{uuid.uuid4().hex[:8]}.svg"
+            nome_arquivo_base = f"Natal_LL_{nome_seguro}_{uuid.uuid4().hex[:8]}"
         
-        # Gerar SVG em memória
+        # 1. Salvar temporariamente usando o método nativo da biblioteca
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
-        svg_string = drawer.makeSVG()
-        svg_bytes = svg_string.encode('utf-8')
+        drawer.save_svg(output_path=Path(PASTA_IMAGENS), filename=nome_arquivo_base)
         
-        # ESTRATÉGIA: Tentar Bunny CDN primeiro, fallback para local
+        # 2. Ler o arquivo salvo
+        nome_arquivo_completo = f"{nome_arquivo_base}.svg"
+        filepath_local = os.path.join(PASTA_IMAGENS, nome_arquivo_completo)
+        
+        with open(filepath_local, "rb") as f:
+            svg_bytes = f.read()
+        
+        # 3. Tentar enviar para Bunny CDN
         public_url = None
         storage_type = "local"
         
         if BUNNY_ENABLED:
-            bunny_result = await upload_to_bunny(svg_bytes, nome_arquivo, "mapas")
+            bunny_result = await upload_to_bunny(svg_bytes, nome_arquivo_completo, "mapas")
             if bunny_result["success"]:
                 public_url = bunny_result["cdn_url"]
                 storage_type = "bunny_cdn"
                 print(f"[Upload] Mapa salvo no Bunny CDN: {public_url}")
+                # Opcional: deletar arquivo local após upload bem-sucedido
+                # os.remove(filepath_local)
         
-        # Fallback para local se Bunny falhou ou está desabilitado
+        # 4. Fallback para local se Bunny falhou
         if not public_url:
-            filepath = os.path.join(PASTA_IMAGENS, nome_arquivo)
-            with open(filepath, "wb") as f:
-                f.write(svg_bytes)
-            public_url = f"https://api.vibraeu.com.br/imagens/{nome_arquivo}"
+            public_url = f"https://api.vibraeu.com.br/imagens/{nome_arquivo_completo}"
             storage_type = "local"
-            print(f"[Upload] Mapa salvo localmente: {public_url}")
+            print(f"[Upload] Mapa mantido localmente: {public_url}")
         
         json_dados = extrair_dados_tecnicos(sujeito, chart_data)
         
@@ -273,8 +276,6 @@ async def natal_lat_long(dados: PessoaLL):
 @app.post("/natal-osm")
 async def natal_busca_cidade(dados: PessoaOSM):
     try:
-        from io import StringIO
-        
         # Monta a string de busca: "Sorocaba, SP, BR"
         query = f"{dados.cidade}, {dados.estado}, {dados.pais}"
         print(f"Buscando no mapa: {query}")
@@ -302,34 +303,37 @@ async def natal_busca_cidade(dados: PessoaOSM):
         if dados.user_id:
             # Limpar mapa antigo do usuário antes de criar novo (local)
             limpar_arquivos_usuario(PASTA_IMAGENS, dados.user_id, "Natal_OSM_")
-            nome_arquivo = f"Natal_OSM_{nome_seguro}_{dados.user_id}.svg"
+            nome_arquivo_base = f"Natal_OSM_{nome_seguro}_{dados.user_id}"
         else:
-            nome_arquivo = f"Natal_OSM_{nome_seguro}_{uuid.uuid4().hex[:8]}.svg"
+            nome_arquivo_base = f"Natal_OSM_{nome_seguro}_{uuid.uuid4().hex[:8]}"
         
-        # Gerar SVG em memória
+        # 1. Salvar temporariamente usando o método nativo da biblioteca
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
-        svg_string = drawer.makeSVG()
-        svg_bytes = svg_string.encode('utf-8')
+        drawer.save_svg(output_path=Path(PASTA_IMAGENS), filename=nome_arquivo_base)
         
-        # ESTRATÉGIA: Tentar Bunny CDN primeiro, fallback para local
+        # 2. Ler o arquivo salvo
+        nome_arquivo_completo = f"{nome_arquivo_base}.svg"
+        filepath_local = os.path.join(PASTA_IMAGENS, nome_arquivo_completo)
+        
+        with open(filepath_local, "rb") as f:
+            svg_bytes = f.read()
+        
+        # 3. Tentar enviar para Bunny CDN
         public_url = None
         storage_type = "local"
         
         if BUNNY_ENABLED:
-            bunny_result = await upload_to_bunny(svg_bytes, nome_arquivo, "mapas")
+            bunny_result = await upload_to_bunny(svg_bytes, nome_arquivo_completo, "mapas")
             if bunny_result["success"]:
                 public_url = bunny_result["cdn_url"]
                 storage_type = "bunny_cdn"
                 print(f"[Upload] Mapa salvo no Bunny CDN: {public_url}")
         
-        # Fallback para local se Bunny falhou ou está desabilitado
+        # 4. Fallback para local se Bunny falhou
         if not public_url:
-            filepath = os.path.join(PASTA_IMAGENS, nome_arquivo)
-            with open(filepath, "wb") as f:
-                f.write(svg_bytes)
-            public_url = f"https://api.vibraeu.com.br/imagens/{nome_arquivo}"
+            public_url = f"https://api.vibraeu.com.br/imagens/{nome_arquivo_completo}"
             storage_type = "local"
-            print(f"[Upload] Mapa salvo localmente: {public_url}")
+            print(f"[Upload] Mapa mantido localmente: {public_url}")
         
         json_dados = extrair_dados_tecnicos(sujeito, chart_data)
 
@@ -348,8 +352,6 @@ async def natal_busca_cidade(dados: PessoaOSM):
 @app.post("/hoje")
 async def ceu_de_hoje(local: LocalizacaoHoje):
     try:
-        from io import StringIO
-        
         # Pega hora atual de SP
         fuso = pytz.timezone("America/Sao_Paulo")
         agora = datetime.now(fuso)
@@ -370,32 +372,35 @@ async def ceu_de_hoje(local: LocalizacaoHoje):
         )
         
         chart_data = ChartDataFactory.create_natal_chart_data(sujeito)
-        nome_arquivo = f"Hoje_{agora.strftime('%Y-%m-%d_%H-%M')}.svg"
+        nome_arquivo_base = f"Hoje_{agora.strftime('%Y-%m-%d_%H-%M')}"
         
-        # Gerar SVG em memória
+        # 1. Salvar temporariamente usando o método nativo da biblioteca
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
-        svg_string = drawer.makeSVG()
-        svg_bytes = svg_string.encode('utf-8')
+        drawer.save_svg(output_path=Path(PASTA_IMAGENS), filename=nome_arquivo_base)
         
-        # ESTRATÉGIA: Tentar Bunny CDN primeiro, fallback para local
+        # 2. Ler o arquivo salvo
+        nome_arquivo_completo = f"{nome_arquivo_base}.svg"
+        filepath_local = os.path.join(PASTA_IMAGENS, nome_arquivo_completo)
+        
+        with open(filepath_local, "rb") as f:
+            svg_bytes = f.read()
+        
+        # 3. Tentar enviar para Bunny CDN
         public_url = None
         storage_type = "local"
         
         if BUNNY_ENABLED:
-            bunny_result = await upload_to_bunny(svg_bytes, nome_arquivo, "mapas")
+            bunny_result = await upload_to_bunny(svg_bytes, nome_arquivo_completo, "mapas")
             if bunny_result["success"]:
                 public_url = bunny_result["cdn_url"]
                 storage_type = "bunny_cdn"
                 print(f"[Upload] Mapa salvo no Bunny CDN: {public_url}")
         
-        # Fallback para local se Bunny falhou ou está desabilitado
+        # 4. Fallback para local se Bunny falhou
         if not public_url:
-            filepath = os.path.join(PASTA_IMAGENS, nome_arquivo)
-            with open(filepath, "wb") as f:
-                f.write(svg_bytes)
-            public_url = f"https://api.vibraeu.com.br/imagens/{nome_arquivo}"
+            public_url = f"https://api.vibraeu.com.br/imagens/{nome_arquivo_completo}"
             storage_type = "local"
-            print(f"[Upload] Mapa salvo localmente: {public_url}")
+            print(f"[Upload] Mapa mantido localmente: {public_url}")
         
         json_dados = extrair_dados_tecnicos(sujeito, chart_data)
         
