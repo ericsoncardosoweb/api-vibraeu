@@ -232,34 +232,45 @@ async def natal_lat_long(dados: PessoaLL):
             nome_arquivo_base = f"Natal_LL_{nome_seguro}_{uuid.uuid4().hex[:8]}"
         
         # 1. Salvar temporariamente usando o método nativo da biblioteca
+        print(f"[DEBUG] Salvando mapa localmente: {nome_arquivo_base}")
         drawer = ChartDrawer(chart_data=chart_data, chart_language="PT")
         drawer.save_svg(output_path=Path(PASTA_IMAGENS), filename=nome_arquivo_base)
+        print(f"[DEBUG] Mapa salvo com sucesso")
         
         # 2. Ler o arquivo salvo
         nome_arquivo_completo = f"{nome_arquivo_base}.svg"
         filepath_local = os.path.join(PASTA_IMAGENS, nome_arquivo_completo)
+        print(f"[DEBUG] Lendo arquivo: {filepath_local}")
         
-        with open(filepath_local, "rb") as f:
-            svg_bytes = f.read()
+        try:
+            with open(filepath_local, "rb") as f:
+                svg_bytes = f.read()
+            print(f"[DEBUG] Arquivo lido: {len(svg_bytes)} bytes")
+        except Exception as e:
+            print(f"[ERROR] Falha ao ler arquivo local: {e}")
+            raise HTTPException(status_code=500, detail=f"Erro ao ler arquivo gerado: {e}")
         
         # 3. Tentar enviar para Bunny CDN
         public_url = None
         storage_type = "local"
         
+        print(f"[DEBUG] BUNNY_ENABLED = {BUNNY_ENABLED}")
         if BUNNY_ENABLED:
+            print(f"[DEBUG] Tentando upload para Bunny CDN...")
             bunny_result = await upload_to_bunny(svg_bytes, nome_arquivo_completo, "mapas")
+            print(f"[DEBUG] Resultado Bunny: {bunny_result}")
             if bunny_result["success"]:
                 public_url = bunny_result["cdn_url"]
                 storage_type = "bunny_cdn"
-                print(f"[Upload] Mapa salvo no Bunny CDN: {public_url}")
-                # Opcional: deletar arquivo local após upload bem-sucedido
-                # os.remove(filepath_local)
+                print(f"[Upload] ✅ Mapa salvo no Bunny CDN: {public_url}")
+        else:
+            print(f"[DEBUG] Bunny CDN desabilitado")
         
         # 4. Fallback para local se Bunny falhou
         if not public_url:
             public_url = f"https://api.vibraeu.com.br/imagens/{nome_arquivo_completo}"
             storage_type = "local"
-            print(f"[Upload] Mapa mantido localmente: {public_url}")
+            print(f"[Upload] 📁 Mapa mantido localmente: {public_url}")
         
         json_dados = extrair_dados_tecnicos(sujeito, chart_data)
         
@@ -269,7 +280,10 @@ async def natal_lat_long(dados: PessoaLL):
             "storage": storage_type,
             "dados": json_dados
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"[ERROR] Erro geral: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ROTA 2: Busca por Nome (OSM)
