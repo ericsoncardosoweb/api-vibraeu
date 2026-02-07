@@ -1,8 +1,43 @@
-fastapi
-uvicorn
+# ==================================
+# VibraEU API — Dependências Unificadas
+# ==================================
+
+# FastAPI Core
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+python-multipart==0.0.9
+
+# Supabase - Using 2.3.4 with all deps pinned to avoid proxy bug
+supabase==2.3.4
+gotrue==2.4.2
+storage3==0.7.0
+postgrest==0.14.0
+
+# LLM Providers
+openai==1.12.0
+groq==0.4.2
+google-generativeai==0.3.2
+
+# Async & HTTP
+httpx==0.25.2
+aiosmtplib==3.0.1
+
+# Astrologia (Kerykeion)
 kerykeion
 geopy
-pydantic
-python-multipart
 Pillow
-httpx
+
+# Scheduling
+apscheduler==3.10.4
+
+# Environment & Config
+python-dotenv==1.0.1
+pydantic-settings==2.1.0
+pydantic
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2024.1
+
+# Logging
+loguru==0.7.2
