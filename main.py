@@ -81,7 +81,20 @@ app = FastAPI(
 
 # CORS Middleware
 settings = get_settings()
-origins = settings.cors_origins.split(",") if settings.cors_origins != "*" else ["*"]
+if settings.cors_origins == "*":
+    # Wildcard + credentials é proibido pelo browser — listar explicitamente
+    origins = [
+        "https://admin.vibraeu.com.br",
+        "https://vibraeu.com.br",
+        "https://www.vibraeu.com.br",
+        "https://app.vibraeu.com.br",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3333",
+        "http://localhost:3000",
+    ]
+else:
+    origins = [o.strip() for o in settings.cors_origins.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
