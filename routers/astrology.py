@@ -23,7 +23,10 @@ from services.astro_engine import (
     geocode_cidade, limpar_arquivos_usuario, limpar_mapas_usuario,
     limpar_avatars_usuario, limpar_tudo_usuario, calcular_fase_lunar
 )
-from kerykeion.chart_data_factory import ChartDataFactory
+try:
+    from kerykeion.chart_data_factory import ChartDataFactory
+except ImportError:
+    from kerykeion import ChartDataFactory
 from config import get_settings
 
 

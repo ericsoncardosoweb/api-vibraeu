@@ -22,8 +22,8 @@ google-generativeai==0.3.2
 httpx==0.25.2
 aiosmtplib==3.0.1
 
-# Astrologia (Kerykeion)
-kerykeion
+# Astrologia (Kerykeion v5+ — AstrologicalSubjectFactory)
+kerykeion>=5.0.0
 geopy
 Pillow
 

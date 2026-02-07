@@ -4,9 +4,24 @@ Lógica extraída fielmente do main.py monolítico original.
 Todas as funções preservadas sem alteração de comportamento.
 """
 
-from kerykeion import AstrologicalSubjectFactory
-from kerykeion.chart_data_factory import ChartDataFactory
-from kerykeion.charts.chart_drawer import ChartDrawer
+try:
+    # Kerykeion v5.0+ — Factory-based API
+    from kerykeion import AstrologicalSubjectFactory
+    KERYKEION_V5 = True
+except ImportError:
+    # Fallback v4.x — AstrologicalSubject direto
+    from kerykeion import AstrologicalSubject
+    KERYKEION_V5 = False
+
+try:
+    from kerykeion.chart_data_factory import ChartDataFactory
+except ImportError:
+    from kerykeion import ChartDataFactory
+
+try:
+    from kerykeion.charts.chart_drawer import ChartDrawer
+except ImportError:
+    from kerykeion import ChartDrawer
 from geopy.geocoders import Nominatim
 from pathlib import Path
 from loguru import logger
@@ -22,16 +37,27 @@ def gerar_sujeito_final(nome, ano, mes, dia, hora, minuto, lat, lng, cidade_nome
     Função única que cria o objeto Kerykeion garantindo que o nome da cidade
     apareça certo no gráfico (Corrigindo o bug de Greenwich)
     """
-    return AstrologicalSubjectFactory.from_birth_data(
-        name=nome,
-        year=ano, month=mes, day=dia,
-        hour=hora, minute=minuto,
-        lng=lng, lat=lat,
-        tz_str="America/Sao_Paulo",
-        city=cidade_nome,
-        nation=pais_nome,
-        online=False
-    )
+    if KERYKEION_V5:
+        return AstrologicalSubjectFactory.from_birth_data(
+            name=nome,
+            year=ano, month=mes, day=dia,
+            hour=hora, minute=minuto,
+            lng=lng, lat=lat,
+            tz_str="America/Sao_Paulo",
+            city=cidade_nome,
+            nation=pais_nome,
+            online=False
+        )
+    else:
+        # Fallback v4.x
+        return AstrologicalSubject(
+            nome, ano, mes, dia, hora, minuto,
+            lng=lng, lat=lat,
+            tz_str="America/Sao_Paulo",
+            city=cidade_nome,
+            nation=pais_nome,
+            online=False
+        )
 
 
 def extrair_dados_tecnicos(sujeito, chart_data):
