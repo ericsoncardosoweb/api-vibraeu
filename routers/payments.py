@@ -17,28 +17,96 @@ from config import get_settings
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 # =============================================
-# PLANOS — Valores definidos SERVER-SIDE
+# PLANOS & CENTELHAS — Dinâmico via Supabase
+# Cache TTL de 5 min para evitar queries repetidas
 # =============================================
 
-PLANOS = {
-    "fluxo": {
-        "valor_mensal": 37.90,
-        "valor_anual": 379.00,
-        "description": "Assinatura VibraEu Fluxo",
-    },
-    "expansao": {
-        "valor_mensal": 89.90,
-        "valor_anual": 899.00,
-        "description": "Assinatura VibraEu Expansão",
-    },
+import time
+
+_plans_cache = {"data": None, "ts": 0}
+_centelhas_cache = {"data": None, "ts": 0}
+_CACHE_TTL = 300  # 5 minutos
+
+# Fallbacks hardcoded (só usados se Supabase indisponível)
+_PLANOS_FALLBACK = {
+    "fluxo": {"valor_mensal": 37.90, "valor_anual": 379.00, "description": "Assinatura VibraEu Fluxo"},
+    "expansao": {"valor_mensal": 89.90, "valor_anual": 899.00, "description": "Assinatura VibraEu Expansão"},
 }
 
-PACOTES_CENTELHAS = {
+_CENTELHAS_FALLBACK = {
     "centelhas_5": {"quantidade": 5, "preco": 9.90, "descricao": "Pack Inicial - 5 Centelhas"},
-    "centelhas_15": {"quantidade": 15, "preco": 24.90, "descricao": "Pack Crescimento - 15+2 Centelhas"},
-    "centelhas_30": {"quantidade": 30, "preco": 44.90, "descricao": "Pack Expansão - 30+5 Centelhas"},
+    "centelhas_20": {"quantidade": 20, "preco": 29.90, "descricao": "Pack Evolução - 20+5 Centelhas"},
+    "centelhas_40": {"quantidade": 40, "preco": 49.90, "descricao": "Pack Expansão - 40+10 Centelhas"},
     "centelhas_60": {"quantidade": 60, "preco": 79.90, "descricao": "Pack Iluminação - 60+15 Centelhas"},
 }
+
+
+def _get_planos() -> dict:
+    """Busca planos de planos_config do Supabase com cache TTL."""
+    now = time.time()
+    if _plans_cache["data"] and (now - _plans_cache["ts"]) < _CACHE_TTL:
+        return _plans_cache["data"]
+
+    try:
+        supabase = _get_supabase()
+        if not supabase:
+            return _PLANOS_FALLBACK
+
+        result = supabase.table("planos_config").select("*").eq("ativo", True).execute()
+        if not result.data:
+            return _PLANOS_FALLBACK
+
+        planos = {}
+        for p in result.data:
+            if p["id"] == "semente":
+                continue  # Semente é grátis, não tem checkout
+            planos[p["id"]] = {
+                "valor_mensal": float(p["preco_mensal"]),
+                "valor_anual": float(p["preco_anual"]) if p.get("preco_anual") else None,
+                "description": f"Assinatura {p['nome']}",
+            }
+
+        _plans_cache["data"] = planos
+        _plans_cache["ts"] = now
+        logger.info(f"[Payments] Plans cache refreshed: {list(planos.keys())}")
+        return planos
+    except Exception as e:
+        logger.warning(f"[Payments] Failed to load plans from DB, using fallback: {e}")
+        return _PLANOS_FALLBACK
+
+
+def _get_pacotes_centelhas() -> dict:
+    """Busca pacotes de centelhas do Supabase com cache TTL."""
+    now = time.time()
+    if _centelhas_cache["data"] and (now - _centelhas_cache["ts"]) < _CACHE_TTL:
+        return _centelhas_cache["data"]
+
+    try:
+        supabase = _get_supabase()
+        if not supabase:
+            return _CENTELHAS_FALLBACK
+
+        result = supabase.table("pacotes_centelhas").select("*").eq("ativo", True).order("ordem").execute()
+        if not result.data:
+            return _CENTELHAS_FALLBACK
+
+        pacotes = {}
+        for p in result.data:
+            bonus_text = f"+{p['bonus']}" if p.get("bonus", 0) > 0 else ""
+            pacotes[p["id"]] = {
+                "quantidade": p["quantidade"],
+                "preco": float(p["preco"]),
+                "bonus": p.get("bonus", 0),
+                "descricao": f"{p.get('descricao', '')} - {p['quantidade']}{bonus_text} Centelhas",
+            }
+
+        _centelhas_cache["data"] = pacotes
+        _centelhas_cache["ts"] = now
+        logger.info(f"[Payments] Centelhas cache refreshed: {list(pacotes.keys())}")
+        return pacotes
+    except Exception as e:
+        logger.warning(f"[Payments] Failed to load centelhas from DB, using fallback: {e}")
+        return _CENTELHAS_FALLBACK
 
 
 # =============================================
@@ -285,14 +353,17 @@ async def create_subscription(req: CreateSubscriptionRequest):
     O frontend envia planCode, o servidor define o valor.
     """
     try:
+        # Buscar planos dinâmicos do banco
+        planos = _get_planos()
+        
         # Validar plano
-        if req.planCode not in PLANOS:
-            raise HTTPException(400, f"Plano '{req.planCode}' inválido. Válidos: {list(PLANOS.keys())}")
+        if req.planCode not in planos:
+            raise HTTPException(400, f"Plano '{req.planCode}' inválido. Válidos: {list(planos.keys())}")
         
         if req.billingType not in ("PIX", "CREDIT_CARD", "BOLETO"):
             raise HTTPException(400, f"billingType '{req.billingType}' inválido")
         
-        plano = PLANOS[req.planCode]
+        plano = planos[req.planCode]
         
         # VALOR DEFINIDO PELO SERVIDOR
         value = plano["valor_anual"] if req.isAnnual else plano["valor_mensal"]
@@ -440,10 +511,13 @@ async def get_payment(req: GetPaymentRequest):
 async def buy_centelhas(req: BuyCentelhasRequest):
     """Comprar pacote de centelhas com valor SERVER-SIDE."""
     try:
-        if req.pacoteId not in PACOTES_CENTELHAS:
+        # Buscar pacotes dinâmicos do banco
+        pacotes = _get_pacotes_centelhas()
+        
+        if req.pacoteId not in pacotes:
             raise HTTPException(400, f"Pacote '{req.pacoteId}' inválido")
         
-        pacote = PACOTES_CENTELHAS[req.pacoteId]
+        pacote = pacotes[req.pacoteId]
         
         logger.info(f"[Asaas] Comprando centelhas: {req.pacoteId} | R${pacote['preco']} | {req.billingType}")
         
@@ -507,25 +581,29 @@ async def buy_centelhas(req: BuyCentelhasRequest):
 
 @router.get("/plans")
 async def list_plans():
-    """Retorna os planos disponíveis com valores (endpoint público para exibição)."""
+    """Retorna os planos disponíveis com valores (dinâmico do Supabase)."""
+    planos = _get_planos()
+    pacotes = _get_pacotes_centelhas()
+    
     return {
         "plans": {
             code: {
                 "code": code,
                 "valor_mensal": p["valor_mensal"],
-                "valor_anual": p["valor_anual"],
+                "valor_anual": p.get("valor_anual"),
                 "description": p["description"],
             }
-            for code, p in PLANOS.items()
+            for code, p in planos.items()
         },
         "centelhas": {
             code: {
                 "code": code,
                 "quantidade": p["quantidade"],
                 "preco": p["preco"],
+                "bonus": p.get("bonus", 0),
                 "descricao": p["descricao"],
             }
-            for code, p in PACOTES_CENTELHAS.items()
+            for code, p in pacotes.items()
         },
         "environment": get_settings().asaas_environment,
     }
