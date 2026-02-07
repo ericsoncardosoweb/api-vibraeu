@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
 from loguru import logger
+import json
 
 from services.supabase_client import get_supabase_client
 from services.llm_gateway import LLMGateway
@@ -283,8 +284,7 @@ async def gerar_frases(req: GerarFrasesRequest):
         )
 
         # Parse JSON da resposta
-        import json
-        # Limpar possíveis blocos markdown
+        # (json já importado no topo do módulo)
         cleaned = result.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[1]
