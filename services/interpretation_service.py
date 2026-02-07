@@ -21,7 +21,7 @@ class InterpretationService:
     
     def __init__(self):
         self.db = SupabaseService()
-        self.llm = LLMGateway()
+        self.llm = LLMGateway.get_instance()
         self.parser = get_variable_parser()
     
     async def trigger_by_event(

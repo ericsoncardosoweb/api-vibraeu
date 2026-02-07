@@ -1,5 +1,5 @@
 """
-LLM Gateway with fallback support.
+LLM Gateway with fallback support and connection pooling.
 Abstract interface for multiple LLM providers.
 """
 
@@ -11,6 +11,42 @@ import json
 
 from config import get_settings
 
+
+# ============================================================================
+# Global HTTP client with connection pooling
+# Reused across all LLM providers — avoids TCP+TLS handshake per request
+# ============================================================================
+_http_client: Optional[httpx.AsyncClient] = None
+
+
+async def get_http_client() -> httpx.AsyncClient:
+    """Get or create the global HTTP client with connection pooling."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            limits=httpx.Limits(
+                max_connections=20,
+                max_keepalive_connections=10,
+                keepalive_expiry=30
+            ),
+            timeout=httpx.Timeout(120.0, connect=10.0)
+        )
+        logger.info("🔌 HTTP connection pool initialized (max=20, keepalive=10)")
+    return _http_client
+
+
+async def close_http_client():
+    """Close the global HTTP client (call on shutdown)."""
+    global _http_client
+    if _http_client and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None
+        logger.info("🔌 HTTP connection pool closed")
+
+
+# ============================================================================
+# LLM Providers
+# ============================================================================
 
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
@@ -47,23 +83,23 @@ class OpenAIProvider(LLMProvider):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                self.base_url,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+        client = await get_http_client()
+        response = await client.post(
+            self.base_url,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": self.model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
 
 
 class GroqProvider(LLMProvider):
@@ -86,23 +122,23 @@ class GroqProvider(LLMProvider):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                self.base_url,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+        client = await get_http_client()
+        response = await client.post(
+            self.base_url,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": self.model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
 
 
 class GeminiProvider(LLMProvider):
@@ -126,22 +162,26 @@ class GeminiProvider(LLMProvider):
             contents.append({"role": "model", "parts": [{"text": "Entendido. Vou seguir essas instruções."}]})
         contents.append({"role": "user", "parts": [{"text": prompt}]})
         
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{self.base_url}?key={self.api_key}",
-                headers={"Content-Type": "application/json"},
-                json={
-                    "contents": contents,
-                    "generationConfig": {
-                        "temperature": temperature,
-                        "maxOutputTokens": max_tokens
-                    }
+        client = await get_http_client()
+        response = await client.post(
+            f"{self.base_url}?key={self.api_key}",
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": contents,
+                "generationConfig": {
+                    "temperature": temperature,
+                    "maxOutputTokens": max_tokens
                 }
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
 
+
+# ============================================================================
+# LLM Gateway (singleton)
+# ============================================================================
 
 class LLMGateway:
     """
@@ -149,10 +189,21 @@ class LLMGateway:
     Tries primary provider first, falls back on failure.
     """
     
+    _instance: Optional['LLMGateway'] = None
+    
     def __init__(self):
         self.settings = get_settings()
         self._providers: Dict[str, LLMProvider] = {}
+        self._call_count = 0
+        self._error_count = 0
         self._initialize_providers()
+    
+    @classmethod
+    def get_instance(cls) -> 'LLMGateway':
+        """Get or create singleton instance."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
     
     def _initialize_providers(self):
         """Initialize available providers based on API keys."""
@@ -188,6 +239,16 @@ class LLMGateway:
                 return GeminiProvider(self.settings.gemini_api_key, model)
         return provider
     
+    @property
+    def stats(self) -> Dict[str, Any]:
+        """Get gateway statistics."""
+        return {
+            "providers": list(self._providers.keys()),
+            "total_calls": self._call_count,
+            "errors": self._error_count,
+            "error_rate": f"{(self._error_count / self._call_count * 100):.1f}%" if self._call_count > 0 else "0%"
+        }
+    
     async def generate(
         self,
         prompt: str,
@@ -208,6 +269,7 @@ class LLMGateway:
         Raises:
             Exception if all providers fail
         """
+        self._call_count += 1
         config = config or {}
         
         # Get config values
@@ -232,6 +294,7 @@ class LLMGateway:
                 logger.info(f"Successfully generated with {primary_provider}")
                 return result
             except Exception as e:
+                self._error_count += 1
                 logger.warning(f"Primary provider {primary_provider} failed: {e}")
         
         # Try fallback provider
@@ -249,6 +312,7 @@ class LLMGateway:
                     logger.info(f"Successfully generated with fallback {fallback_provider}")
                     return result
                 except Exception as e:
+                    self._error_count += 1
                     logger.error(f"Fallback provider {fallback_provider} also failed: {e}")
                     raise
         

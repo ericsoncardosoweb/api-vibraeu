@@ -20,6 +20,7 @@ from loguru import logger
 
 from services.supabase_client import get_supabase_client
 from services.llm_gateway import LLMGateway
+from services.cache import response_cache
 
 router = APIRouter()
 
@@ -255,7 +256,7 @@ Retorne um array JSON com objetos no formato:
 async def gerar_frases(req: GerarFrasesRequest):
     """Gerar frases com IA baseado na categoria, tema e signo."""
     try:
-        gateway = LLMGateway()
+        gateway = LLMGateway.get_instance()
 
         prompt_parts = [f"Gere {req.quantidade} frases na categoria '{req.categoria}'."]
 
@@ -326,7 +327,16 @@ async def frases_do_dia(user_id: str):
     Retorna 5 frases do dia personalizadas para o user.
     Filtra pelo MAC do user (sol, lua, ascendente, mc).
     Usa seed baseada na data para manter consistência no mesmo dia.
+    Cached por 30min (frases do dia não mudam intra-dia).
     """
+    from datetime import date
+    
+    # Check cache (30min TTL)
+    cache_key = f"frases_dia:{user_id}:{date.today().isoformat()}"
+    cached = response_cache.get(cache_key)
+    if cached:
+        return cached
+    
     try:
         supabase = get_supabase_client()
 
@@ -343,10 +353,9 @@ async def frases_do_dia(user_id: str):
                     user_signos.append(normalize_signo(mac[campo]))
 
         # 2. Buscar frases — mix de personalizadas + universais
-        # Frases específicas dos signos do user (3)
         frases_personalizadas = []
         if user_signos:
-            for signo in user_signos[:3]:  # Max 3 signos
+            for signo in user_signos[:3]:
                 signo_result = supabase.table("frases_inspiracao").select("*").eq(
                     "ativo", True
                 ).contains("signos", [signo]).limit(5).execute()
@@ -360,9 +369,7 @@ async def frases_do_dia(user_id: str):
 
         # 3. Montar mix: 2-3 personalizadas + 2-3 universais = 5 total
         import random
-        from datetime import date
 
-        # Seed baseada na data + user_id para consistência no dia
         seed_str = f"{date.today().isoformat()}_{user_id}"
         seed = hash(seed_str) % (2**32)
         rng = random.Random(seed)
@@ -385,25 +392,27 @@ async def frases_do_dia(user_id: str):
         rng.shuffle(universais_unicas)
 
         result_frases = []
-        # Até 3 personalizadas
         result_frases.extend(personalizadas_unicas[:3])
-        # Completar com universais até ter 5
         remaining = 5 - len(result_frases)
         result_frases.extend(universais_unicas[:remaining])
 
-        # Se ainda não tem 5, pegar o que falta de qualquer lugar
         if len(result_frases) < 5:
             extra = personalizadas_unicas[3:] + universais_unicas[remaining:]
             result_frases.extend(extra[:5 - len(result_frases)])
 
         rng.shuffle(result_frases)
 
-        return {
+        response = {
             "success": True,
             "frases": result_frases[:5],
             "user_signos": list(set(user_signos)),
             "data": date.today().isoformat()
         }
+        
+        # Cachear por 30min
+        response_cache.set(cache_key, response, ttl=1800)
+        
+        return response
 
     except Exception as e:
         logger.error(f"[Frases] Frases do dia error: {e}")
@@ -417,7 +426,13 @@ async def frases_random(
     signo: Optional[str] = None,
     tema: Optional[str] = None,
 ):
-    """Retorna frases aleatórias com filtros opcionais."""
+    """Retorna frases aleatórias com filtros opcionais. Cache 1min."""
+    # Check cache (1min TTL)
+    cache_key = f"frases_random:{quantidade}:{categoria}:{signo}:{tema}"
+    cached = response_cache.get(cache_key)
+    if cached:
+        return cached
+    
     try:
         supabase = get_supabase_client()
         query = supabase.table("frases_inspiracao").select("*").eq("ativo", True)
@@ -430,7 +445,6 @@ async def frases_random(
         if tema:
             query = query.contains("temas", [tema])
 
-        # Buscar mais do que precisa para randomizar
         query = query.limit(quantidade * 3)
         result = query.execute()
 
@@ -438,11 +452,16 @@ async def frases_random(
         frases = result.data or []
         random.shuffle(frases)
 
-        return {
+        response = {
             "success": True,
             "frases": frases[:quantidade],
             "total_disponivel": len(frases)
         }
+        
+        # Cachear por 1min
+        response_cache.set(cache_key, response, ttl=60)
+        
+        return response
 
     except Exception as e:
         logger.error(f"[Frases] Random error: {e}")

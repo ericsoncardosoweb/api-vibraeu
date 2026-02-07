@@ -229,7 +229,7 @@ async def generate_global_interpretation(request: GenerateRequest):
     
     # 3. Call LLM
     try:
-        llm = LLMGateway()
+        llm = LLMGateway.get_instance()
         raw_response = await llm.generate(
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,

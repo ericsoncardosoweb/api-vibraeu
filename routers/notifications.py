@@ -76,7 +76,7 @@ async def optimize_text(req: OptimizeTextRequest):
         raise HTTPException(status_code=400, detail="Texto muito curto para otimizar")
     
     try:
-        gateway = LLMGateway()
+        gateway = LLMGateway.get_instance()
         
         optimized = await gateway.generate(
             prompt=req.text,

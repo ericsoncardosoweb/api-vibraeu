@@ -7,10 +7,12 @@ Endpoint único: api.vibraeu.com.br
 from fastapi import FastAPI, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
 from loguru import logger
 import sys
 import os
+import time
 
 from config import get_settings
 from routers import trigger, process, scheduler, health, upload, admin
@@ -39,13 +41,17 @@ logger.add(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
+    from services.llm_gateway import close_http_client
+    
     settings = get_settings()
+    app.state.start_time = time.time()
     
     # Criar pastas locais se não existem
     os.makedirs(settings.pasta_imagens, exist_ok=True)
     os.makedirs(settings.pasta_avatars, exist_ok=True)
     
     logger.info(f"🚀 Starting {settings.app_name} v{settings.app_version}")
+    logger.info("⚡ Performance: GZip + HTTP Pool + TTL Cache ENABLED")
     
     if settings.api_key:
         logger.info("🔒 API Key protection ENABLED")
@@ -61,6 +67,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🛑 Shutting down...")
+    await close_http_client()
     shutdown_scheduler()
 
 
@@ -83,6 +90,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# GZip — comprime respostas > 500 bytes
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # ============================================================================
 # Montar pastas estáticas (para fallback local de imagens/avatars)
