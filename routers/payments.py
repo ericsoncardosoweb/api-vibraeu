@@ -420,13 +420,14 @@ async def create_subscription(req: CreateSubscriptionRequest):
                     "user_id": req.userId,
                     "asaas_subscription_id": result["id"],
                     "asaas_customer_id": result.get("customer"),
-                    "status": result.get("status"),
-                    "billing_type": result.get("billingType"),
-                    "value": result.get("value"),
-                    "cycle": result.get("cycle"),
-                    "next_due_date": result.get("nextDueDate"),
-                    "plan_code": req.planCode,
-                    "sandbox": is_sandbox,
+                    "status": (result.get("status") or "active").lower(),
+                    "plano": req.planCode,
+                    "valor": result.get("value"),
+                    "ciclo": result.get("cycle"),
+                    "proximo_vencimento": result.get("nextDueDate"),
+                    "data_inicio": datetime.utcnow().isoformat(),
+                    "descricao": description,
+                    "is_sandbox": is_sandbox,
                     "updated_at": datetime.utcnow().isoformat(),
                 }, on_conflict="user_id").execute()
                 
@@ -471,7 +472,7 @@ async def cancel_subscription(req: CancelSubscriptionRequest):
     if supabase:
         try:
             supabase.table("assinaturas").update({
-                "status": "CANCELED",
+                "status": "canceled",
                 "updated_at": datetime.utcnow().isoformat(),
             }).eq("asaas_subscription_id", req.subscriptionId).execute()
             
@@ -561,13 +562,12 @@ async def buy_centelhas(req: BuyCentelhasRequest):
                 supabase.table("pagamentos").insert({
                     "user_id": req.userId,
                     "asaas_payment_id": result["id"],
-                    "asaas_customer_id": result.get("customer"),
                     "status": result.get("status"),
-                    "billing_type": result.get("billingType"),
-                    "value": result.get("value"),
-                    "due_date": result.get("dueDate"),
-                    "description": result.get("description"),
-                    "sandbox": is_sandbox,
+                    "forma_pagamento": result.get("billingType"),
+                    "valor": result.get("value"),
+                    "data_vencimento": result.get("dueDate"),
+                    "descricao": result.get("description"),
+                    "is_sandbox": is_sandbox,
                     "created_at": datetime.utcnow().isoformat(),
                 }).execute()
             except Exception as e:
@@ -746,11 +746,11 @@ async def abacatepay_create_pix(req: AbacatePayCreatePixRequest):
                     "user_id": req.userId,
                     "asaas_payment_id": result["id"],  # Reusa campo, prefixo pix_char_ identifica AbacatePay
                     "status": result.get("status", "PENDING"),
-                    "billing_type": "PIX",
-                    "value": value,
-                    "due_date": datetime.utcnow().strftime("%Y-%m-%d"),
-                    "description": description,
-                    "sandbox": result.get("devMode", False),
+                    "forma_pagamento": "PIX",
+                    "valor": value,
+                    "data_vencimento": datetime.utcnow().strftime("%Y-%m-%d"),
+                    "descricao": description,
+                    "is_sandbox": result.get("devMode", False),
                     "created_at": datetime.utcnow().isoformat(),
                 }).execute()
             except Exception as e:
@@ -794,7 +794,7 @@ async def abacatepay_check_pix(req: AbacatePayCheckPixRequest):
 
                     # Buscar metadata para saber o que foi comprado
                     pag_result = supabase.table("pagamentos") \
-                        .select("description, user_id, value") \
+                        .select("descricao, user_id, valor") \
                         .eq("asaas_payment_id", req.pixId) \
                         .maybe_single() \
                         .execute()
@@ -945,7 +945,7 @@ async def abacatepay_webhook(
 
             pagamento = pag_result.data
             user_id = pagamento.get("user_id")
-            description = pagamento.get("description", "")
+            description = pagamento.get("descricao", "")
 
             # Atualizar status do pagamento
             supabase.table("pagamentos").update({

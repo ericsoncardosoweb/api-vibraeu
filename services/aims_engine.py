@@ -362,7 +362,7 @@ class AIMSEngine:
                 "birth_time": user_data.get("birth_time", ""),
                 "birth_city": user_data.get("birth_city", ""),
                 "sexo": user_data.get("sexo", user_data.get("gender", "")),
-                "plan": user_data.get("plano", user_data.get("plan", "free")),
+                "plan": user_data.get("plano", user_data.get("plan", "semente")),
             }
         
         if include_context_data and mac_data:

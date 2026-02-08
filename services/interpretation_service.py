@@ -45,7 +45,7 @@ class InterpretationService:
         """
         # Get user profile to determine plan
         user_data = await self.db.get_user_data(user_id)
-        user_plan = user_data.get("plano", "free") if user_data else "free"
+        user_plan = user_data.get("plano", "semente") if user_data else "semente"
         
         # Get matching templates
         templates = await self.db.get_templates_by_event(event, user_plan)

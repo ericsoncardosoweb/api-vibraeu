@@ -5,7 +5,7 @@ Scheduler endpoint - manage background scheduler.
 from fastapi import APIRouter
 from loguru import logger
 
-from scheduler.jobs import get_scheduler_status, run_scheduler_now, centelhas_replenish_job
+from scheduler.jobs import get_scheduler_status, run_scheduler_now, centelhas_replenish_job, suspend_inactive_free_accounts_job
 
 
 router = APIRouter()
@@ -65,3 +65,14 @@ async def resume_scheduler():
     from scheduler.jobs import resume_scheduler as do_resume
     do_resume()
     return {"success": True, "message": "Scheduler resumed"}
+
+
+@router.post("/suspend-inactive")
+async def suspend_inactive():
+    """
+    Forçar suspensão manual de contas free inativas (30+ dias sem login).
+    Útil para testes ou execução imediata.
+    """
+    logger.info("Manual inactive suspension triggered")
+    await suspend_inactive_free_accounts_job()
+    return {"success": True, "message": "Inactive accounts suspension completed"}

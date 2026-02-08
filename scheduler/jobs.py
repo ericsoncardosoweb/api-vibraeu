@@ -134,6 +134,71 @@ async def centelhas_replenish_job():
         logger.error(f"[Centelhas] Erro na recarga mensal: {e}")
 
 
+async def suspend_inactive_free_accounts_job():
+    """
+    Suspende contas free (semente) inativas há mais de 30 dias.
+    Roda diariamente às 04:00 UTC.
+    Usa auth.users.last_sign_in_at para determinar inatividade.
+    Contas suspensas são reativadas automaticamente ao logar (ver AuthContext).
+    """
+    logger.info("[Suspend] Verificando contas free inativas...")
+    
+    try:
+        from supabase import create_client
+        from datetime import timedelta
+        settings = get_settings()
+        
+        supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+        
+        # 1. Buscar profiles free (semente) ativos ou sem status
+        profiles_result = supabase.table("profiles") \
+            .select("id, plano, subscription_status, nome, email") \
+            .in_("plano", ["semente", "free", ""]) \
+            .neq("subscription_status", "suspended") \
+            .execute()
+        
+        if not profiles_result.data:
+            logger.info("[Suspend] Nenhuma conta free ativa encontrada")
+            return
+        
+        logger.info(f"[Suspend] {len(profiles_result.data)} contas free ativas para verificar")
+        
+        # 2. Buscar último login via auth.users (usando RPC ou admin API)
+        cutoff_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        total_suspended = 0
+        
+        for profile in profiles_result.data:
+            try:
+                # Buscar last_sign_in_at via auth.admin
+                user_response = supabase.auth.admin.get_user_by_id(profile["id"])
+                
+                if not user_response or not user_response.user:
+                    continue
+                
+                last_sign_in = user_response.user.last_sign_in_at
+                
+                # Se nunca logou ou último login > 30 dias
+                if last_sign_in is None or last_sign_in < cutoff_date:
+                    supabase.table("profiles").update({
+                        "subscription_status": "suspended",
+                        "updated_at": datetime.utcnow().isoformat()
+                    }).eq("id", profile["id"]).execute()
+                    
+                    total_suspended += 1
+                    logger.debug(
+                        f"[Suspend] Conta suspensa: {profile.get('email', profile['id'])} "
+                        f"(último login: {last_sign_in or 'nunca'})"
+                    )
+                    
+            except Exception as e:
+                logger.error(f"[Suspend] Erro ao verificar {profile['id']}: {e}")
+        
+        logger.info(f"[Suspend] ✅ {total_suspended} contas suspensas de {len(profiles_result.data)} verificadas")
+        
+    except Exception as e:
+        logger.error(f"[Suspend] Erro no job de suspensão: {e}")
+
+
 def start_scheduler():
     """Start the background scheduler."""
     global _scheduler, _is_running
@@ -164,11 +229,21 @@ def start_scheduler():
         replace_existing=True
     )
     
+    # Job 3: Suspensão de contas free inativas (diário às 04:00 UTC)
+    _scheduler.add_job(
+        suspend_inactive_free_accounts_job,
+        trigger=CronTrigger(hour=4, minute=0),
+        id="suspend_inactive",
+        name="Suspend Inactive Free Accounts",
+        replace_existing=True
+    )
+    
     _scheduler.start()
     _is_running = True
     
     logger.info(
-        f"Scheduler started with {settings.scheduler_interval_seconds}s interval + monthly centelhas replenish"
+        f"Scheduler started with {settings.scheduler_interval_seconds}s interval "
+        f"+ monthly centelhas replenish + daily inactive suspension"
     )
 
 

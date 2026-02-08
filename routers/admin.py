@@ -336,15 +336,15 @@ async def trigger_event(
         # DETERMINAR PERFIL DO USUÁRIO (premium/free)
         # ================================================================
         user_response = supabase.client.table("profiles") \
-            .select("subscription_plan") \
+            .select("plano") \
             .eq("id", request.user_id) \
             .limit(1) \
             .execute()
         
-        user_plan = "free"  # Default
-        if user_response.data and user_response.data[0].get("subscription_plan"):
-            plan = user_response.data[0]["subscription_plan"].lower()
-            if plan in ["premium", "pro", "business", "enterprise", "anual", "mensal", "pago"]:
+        user_plan = "semente"  # Default
+        if user_response.data and user_response.data[0].get("plano"):
+            plan = user_response.data[0]["plano"].lower()
+            if plan in ["fluxo", "expansao"]:
                 user_plan = "premium"
         
         logger.info(f"User plan: {user_plan}")
@@ -366,7 +366,7 @@ async def trigger_event(
         # - "active_user" + qualquer plano: executa para o usuário ativo
         # - "all": executa para todos independente do plano
         # - "premium": apenas se user_plan == "premium"
-        # - "free": apenas se user_plan == "free"
+        # - "free"/"semente": apenas se user_plan não é premium
         
         templates = []
         for t in all_templates:
@@ -375,8 +375,10 @@ async def trigger_event(
             # "all" ou "active_user" sempre passam
             if "all" in target_profiles or "active_user" in target_profiles:
                 templates.append(t)
-            # Filtrar por plano
+            # Filtrar por plano (aceitar 'free' e 'semente' como equivalentes)
             elif user_plan in target_profiles:
+                templates.append(t)
+            elif user_plan in ["free", "semente"] and ("free" in target_profiles or "semente" in target_profiles):
                 templates.append(t)
         
         logger.info(f"Templates matched: {len(templates)} of {len(all_templates)}")
@@ -419,25 +421,25 @@ async def trigger_event(
                 
             elif "all_premium" in target_profiles:
                 # Buscar todos os usuários premium
-                premium_plans = ["premium", "pro", "business", "enterprise", "anual", "mensal", "pago"]
+                premium_plans = ["fluxo", "expansao"]
                 users_response = supabase.client.table("profiles") \
-                    .select("id, subscription_plan") \
+                    .select("id, plano") \
                     .execute()
                 target_user_ids = [
                     u["id"] for u in (users_response.data or [])
-                    if u.get("subscription_plan", "").lower() in premium_plans
+                    if u.get("plano", "").lower() in premium_plans
                 ]
                 logger.info(f"Batch ALL_PREMIUM: {len(target_user_ids)} users")
                 
             elif "all_free" in target_profiles:
                 # Buscar todos os usuários free
-                premium_plans = ["premium", "pro", "business", "enterprise", "anual", "mensal", "pago"]
+                premium_plans = ["fluxo", "expansao"]
                 users_response = supabase.client.table("profiles") \
-                    .select("id, subscription_plan") \
+                    .select("id, plano") \
                     .execute()
                 target_user_ids = [
                     u["id"] for u in (users_response.data or [])
-                    if u.get("subscription_plan", "").lower() not in premium_plans
+                    if u.get("plano", "").lower() not in premium_plans
                 ]
                 logger.info(f"Batch ALL_FREE: {len(target_user_ids)} users")
                 
