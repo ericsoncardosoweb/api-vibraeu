@@ -207,7 +207,7 @@ class GenerateResponse(BaseModel):
 async def generate_global_interpretation(request: GenerateRequest):
     """
     Generate a global interpretation for a given type and key.
-    Uses Groq (Llama 3.3 70B) as primary LLM with OpenAI fallback.
+    Uses OpenAI (GPT-4.1 Mini) as primary LLM with Groq fallback.
     """
     tipo = request.tipo.lower().strip()
     chave = request.chave.lower().strip()

@@ -607,3 +607,243 @@ async def list_plans():
         },
         "environment": get_settings().asaas_environment,
     }
+
+
+# =============================================
+# ABACATEPAY — PIX Payment Gateway
+# =============================================
+
+ABACATEPAY_BASE_URL = "https://api.abacatepay.com/v1"
+
+
+async def _abacatepay_request(method: str, endpoint: str, data: dict = None, params: dict = None) -> dict:
+    """Faz request para API AbacatePay com auth Bearer."""
+    settings = get_settings()
+    api_key = settings.abacatepay_api_key
+
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AbacatePay API key não configurada")
+
+    url = f"{ABACATEPAY_BASE_URL}{endpoint}"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    logger.info(f"[AbacatePay] {method} {endpoint}")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        if method == "GET":
+            resp = await client.get(url, headers=headers, params=params)
+        elif method == "POST":
+            resp = await client.post(url, headers=headers, json=data)
+        else:
+            raise HTTPException(400, f"Método {method} não suportado")
+
+    if not resp.is_success:
+        try:
+            error_data = resp.json()
+            msg = error_data.get("error") or f"Erro AbacatePay: {resp.status_code}"
+        except Exception:
+            msg = f"Erro AbacatePay: {resp.status_code}"
+        logger.error(f"[AbacatePay] {method} {endpoint} → {resp.status_code}: {msg}")
+        raise HTTPException(status_code=resp.status_code, detail=msg)
+
+    result = resp.json()
+    # AbacatePay wraps responses in {"data": ..., "error": ...}
+    if "error" in result and result["error"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return result.get("data", result)
+
+
+class AbacatePayCreatePixRequest(BaseModel):
+    itemType: str  # "plan" ou "centelhas"
+    itemCode: str  # código do plano ou pacote
+    cycle: str = "monthly"  # "monthly" ou "annual" (só para planos)
+    userId: str
+    customerName: Optional[str] = None
+    customerEmail: Optional[str] = None
+    customerPhone: Optional[str] = None
+    customerTaxId: Optional[str] = None
+
+
+class AbacatePayCheckPixRequest(BaseModel):
+    pixId: str
+    userId: str
+
+
+class AbacatePaySimulateRequest(BaseModel):
+    pixId: str
+    userId: str
+
+
+@router.post("/abacatepay/create-pix")
+async def abacatepay_create_pix(req: AbacatePayCreatePixRequest):
+    """
+    Criar cobrança PIX via AbacatePay.
+    Valor definido SERVER-SIDE a partir do plano/pacote.
+    """
+    try:
+        # Determinar valor e descrição server-side
+        if req.itemType == "plan":
+            planos = _get_planos()
+            if req.itemCode not in planos:
+                raise HTTPException(400, f"Plano '{req.itemCode}' inválido. Válidos: {list(planos.keys())}")
+            plano = planos[req.itemCode]
+            is_annual = req.cycle == "annual"
+            value = plano["valor_anual"] if is_annual and plano.get("valor_anual") else plano["valor_mensal"]
+            description = f"{plano['description']} ({'Anual' if is_annual else 'Mensal'})"
+        elif req.itemType == "centelhas":
+            pacotes = _get_pacotes_centelhas()
+            if req.itemCode not in pacotes:
+                raise HTTPException(400, f"Pacote '{req.itemCode}' inválido")
+            pacote = pacotes[req.itemCode]
+            value = pacote["preco"]
+            description = pacote["descricao"]
+        else:
+            raise HTTPException(400, f"itemType '{req.itemType}' inválido")
+
+        # AbacatePay usa centavos
+        amount_cents = int(round(value * 100))
+
+        logger.info(f"[AbacatePay] Criando PIX: {req.itemType}/{req.itemCode} | R${value} ({amount_cents} centavos)")
+
+        # Montar payload
+        payload: Dict[str, Any] = {
+            "amount": amount_cents,
+            "expiresIn": 3600,  # 1 hora
+            "description": description[:37],  # Limite de 37 caracteres no PIX
+        }
+
+        # Adicionar customer se disponível
+        if req.customerName and req.customerEmail:
+            payload["customer"] = {
+                "name": req.customerName,
+                "email": req.customerEmail,
+                "cellphone": req.customerPhone or "(00) 00000-0000",
+                "taxId": req.customerTaxId or "000.000.000-00",
+            }
+
+        # Metadata para rastreamento
+        payload["metadata"] = {
+            "userId": req.userId,
+            "itemType": req.itemType,
+            "itemCode": req.itemCode,
+            "cycle": req.cycle,
+        }
+
+        result = await _abacatepay_request("POST", "/pixQrCode/create", payload)
+
+        # Sync com Supabase
+        supabase = _get_supabase()
+        if supabase and result.get("id"):
+            try:
+                supabase.table("pagamentos").insert({
+                    "user_id": req.userId,
+                    "asaas_payment_id": result["id"],  # Reusa campo, prefixo pix_char_ identifica AbacatePay
+                    "status": result.get("status", "PENDING"),
+                    "billing_type": "PIX",
+                    "value": value,
+                    "due_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                    "description": description,
+                    "sandbox": result.get("devMode", False),
+                    "created_at": datetime.utcnow().isoformat(),
+                }).execute()
+            except Exception as e:
+                logger.warning(f"[AbacatePay] Sync payment failed: {e}")
+
+        return {
+            "pixId": result.get("id"),
+            "brCode": result.get("brCode"),
+            "brCodeBase64": result.get("brCodeBase64"),
+            "amount": result.get("amount"),
+            "status": result.get("status"),
+            "expiresAt": result.get("expiresAt"),
+            "devMode": result.get("devMode", False),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AbacatePay] create-pix error: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/abacatepay/check-pix")
+async def abacatepay_check_pix(req: AbacatePayCheckPixRequest):
+    """Checar status de pagamento PIX via AbacatePay."""
+    try:
+        result = await _abacatepay_request("GET", "/pixQrCode/check", params={"id": req.pixId})
+
+        status = result.get("status", "PENDING")
+
+        # Se pago, atualizar Supabase
+        if status == "PAID":
+            supabase = _get_supabase()
+            if supabase:
+                try:
+                    # Atualizar status do pagamento
+                    supabase.table("pagamentos").update({
+                        "status": "RECEIVED",
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }).eq("asaas_payment_id", req.pixId).execute()
+
+                    # Buscar metadata para saber o que foi comprado
+                    pag_result = supabase.table("pagamentos") \
+                        .select("description, user_id, value") \
+                        .eq("asaas_payment_id", req.pixId) \
+                        .maybe_single() \
+                        .execute()
+
+                    if pag_result.data:
+                        logger.info(f"[AbacatePay] PIX {req.pixId} confirmado para user {req.userId}")
+                except Exception as e:
+                    logger.warning(f"[AbacatePay] Sync check-pix failed: {e}")
+
+        return {
+            "status": status,
+            "expiresAt": result.get("expiresAt"),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AbacatePay] check-pix error: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/abacatepay/simulate-payment")
+async def abacatepay_simulate_payment(req: AbacatePaySimulateRequest):
+    """Simular pagamento PIX (somente dev mode)."""
+    try:
+        result = await _abacatepay_request(
+            "POST",
+            "/pixQrCode/simulate-payment",
+            data={"metadata": {}},
+            params={"id": req.pixId}
+        )
+
+        # Atualizar Supabase como pago
+        supabase = _get_supabase()
+        if supabase:
+            try:
+                supabase.table("pagamentos").update({
+                    "status": "RECEIVED",
+                    "updated_at": datetime.utcnow().isoformat(),
+                }).eq("asaas_payment_id", req.pixId).execute()
+            except Exception as e:
+                logger.warning(f"[AbacatePay] Sync simulate failed: {e}")
+
+        return {
+            "pixId": result.get("id"),
+            "status": result.get("status"),
+            "devMode": result.get("devMode", True),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AbacatePay] simulate-payment error: {e}")
+        raise HTTPException(500, str(e))
+

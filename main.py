@@ -25,6 +25,7 @@ from routers import plans
 from routers import users
 from routers import notifications
 from routers import frases
+from routers import luna
 from scheduler.jobs import start_scheduler, shutdown_scheduler
 from middleware.auth import verify_api_key
 
@@ -198,6 +199,17 @@ app.include_router(
     interpretations.router, 
     prefix="/admin",
     tags=["Interpretações Globais"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+# ============================================================================
+# Rotas Luna — Insights personalizados via IA
+# Protegidas por API key
+# ============================================================================
+app.include_router(
+    luna.router, 
+    prefix="/luna",
+    tags=["Luna Insights"],
     dependencies=[Depends(verify_api_key)]
 )
 

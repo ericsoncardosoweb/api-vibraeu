@@ -29,10 +29,10 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
     
     # Default LLM Config
-    default_provider: str = "groq"
-    default_model: str = "llama-3.3-70b-versatile"
-    fallback_provider: str = "openai"
-    fallback_model: str = "gpt-4.1-mini"
+    default_provider: str = "openai"
+    default_model: str = "gpt-4.1-mini"
+    fallback_provider: str = "groq"
+    fallback_model: str = "llama-3.3-70b-versatile"
     
     # Scheduler
     scheduler_enabled: bool = True
@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     asaas_environment: str = "sandbox"  # "sandbox" ou "production"
     asaas_prod_api_key: Optional[str] = None
     asaas_sandbox_api_key: Optional[str] = None
+    
+    # AbacatePay Payment Gateway (PIX)
+    abacatepay_api_key: Optional[str] = None
     
     # WhatsApp (UAZAPI)
     uazapi_server_url: str = ""

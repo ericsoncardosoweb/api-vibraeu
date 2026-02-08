@@ -210,13 +210,13 @@ class LLMGateway:
         if self.settings.openai_api_key:
             self._providers["openai"] = OpenAIProvider(
                 self.settings.openai_api_key,
-                self.settings.fallback_model
+                self.settings.default_model
             )
         
         if self.settings.groq_api_key:
             self._providers["groq"] = GroqProvider(
                 self.settings.groq_api_key,
-                self.settings.default_model
+                self.settings.fallback_model
             )
         
         if self.settings.gemini_api_key:
