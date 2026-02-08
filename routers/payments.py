@@ -6,10 +6,13 @@ Valores dos planos definidos server-side, nunca no frontend.
 
 import httpx
 import uuid
+import hmac
+import hashlib
+import time as time_module
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Query
 from loguru import logger
 
 from config import get_settings
@@ -847,3 +850,172 @@ async def abacatepay_simulate_payment(req: AbacatePaySimulateRequest):
         logger.error(f"[AbacatePay] simulate-payment error: {e}")
         raise HTTPException(500, str(e))
 
+
+# =============================================
+# ABACATEPAY WEBHOOK — Recebe notificações de pagamento
+# =============================================
+
+# Chave pública HMAC da AbacatePay (documentação oficial)
+ABACATEPAY_HMAC_PUBLIC_KEY = "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9"
+
+
+def _verify_abacatepay_hmac(raw_body: bytes, signature: str) -> bool:
+    """Verifica assinatura HMAC-SHA256 do webhook AbacatePay."""
+    try:
+        import base64
+        expected = hmac.new(
+            ABACATEPAY_HMAC_PUBLIC_KEY.encode("utf-8"),
+            raw_body,
+            hashlib.sha256
+        ).digest()
+        expected_b64 = base64.b64encode(expected).decode("utf-8")
+        return hmac.compare_digest(expected_b64, signature)
+    except Exception as e:
+        logger.error(f"[AbacatePay Webhook] HMAC verification error: {e}")
+        return False
+
+
+@router.post("/abacatepay/webhook")
+async def abacatepay_webhook(
+    request: Request,
+    webhookSecret: Optional[str] = Query(None)
+):
+    """
+    Webhook receiver para AbacatePay.
+    Recebe notificações de pagamento (billing.paid) e atualiza o Supabase.
+    URL: https://api.vibraeu.com.br/payments/abacatepay/webhook?webhookSecret=SEU_SECRET
+    """
+    try:
+        # 1. Validar webhookSecret (autenticação simples)
+        settings = get_settings()
+        expected_secret = settings.abacatepay_webhook_secret
+        if expected_secret and webhookSecret != expected_secret:
+            logger.warning("[AbacatePay Webhook] Invalid webhook secret")
+            raise HTTPException(401, "Invalid webhook secret")
+
+        # 2. Ler body raw para HMAC
+        raw_body = await request.body()
+
+        # 3. Validar HMAC se presente
+        hmac_signature = request.headers.get("X-Webhook-Signature")
+        if hmac_signature:
+            if not _verify_abacatepay_hmac(raw_body, hmac_signature):
+                logger.warning("[AbacatePay Webhook] Invalid HMAC signature")
+                raise HTTPException(401, "Invalid HMAC signature")
+
+        # 4. Parse body
+        import json
+        body = json.loads(raw_body)
+
+        event = body.get("event")
+        dev_mode = body.get("devMode", False)
+        data = body.get("data", {})
+
+        logger.info(f"[AbacatePay Webhook] Evento: {event} | devMode: {dev_mode} | id: {body.get('id')}")
+
+        # 5. Processar billing.paid
+        if event == "billing.paid":
+            pix_qr = data.get("pixQrCode", {})
+            payment_info = data.get("payment", {})
+            pix_id = pix_qr.get("id")
+            amount = payment_info.get("amount", 0)  # centavos
+            status = pix_qr.get("status")
+
+            if not pix_id:
+                logger.warning("[AbacatePay Webhook] billing.paid sem pixQrCode.id")
+                return {"received": True, "processed": False}
+
+            logger.info(f"[AbacatePay Webhook] PIX pago: {pix_id} | amount: {amount} centavos | status: {status}")
+
+            supabase = _get_supabase()
+            if not supabase:
+                logger.error("[AbacatePay Webhook] Supabase indisponível")
+                return {"received": True, "processed": False}
+
+            # Buscar pagamento pelo pix_id
+            pag_result = supabase.table("pagamentos") \
+                .select("*") \
+                .eq("asaas_payment_id", pix_id) \
+                .maybe_single() \
+                .execute()
+
+            if not pag_result.data:
+                logger.warning(f"[AbacatePay Webhook] Pagamento {pix_id} não encontrado no Supabase")
+                return {"received": True, "processed": False}
+
+            pagamento = pag_result.data
+            user_id = pagamento.get("user_id")
+            description = pagamento.get("description", "")
+
+            # Atualizar status do pagamento
+            supabase.table("pagamentos").update({
+                "status": "RECEIVED",
+                "updated_at": datetime.utcnow().isoformat(),
+            }).eq("asaas_payment_id", pix_id).execute()
+
+            logger.info(f"[AbacatePay Webhook] Pagamento {pix_id} atualizado para RECEIVED | user: {user_id}")
+
+            # Determinar se é plano ou centelhas pela descrição
+            is_plan = "Assinatura" in description
+
+            if is_plan and user_id:
+                # Extrair o plano da descrição
+                plan_code = None
+                planos = _get_planos()
+                for code, plano in planos.items():
+                    if code.lower() in description.lower():
+                        plan_code = code
+                        break
+
+                if plan_code:
+                    try:
+                        supabase.table("profiles").update({
+                            "plano": plan_code,
+                            "subscription_status": "active",
+                            "updated_at": datetime.utcnow().isoformat(),
+                        }).eq("id", user_id).execute()
+                        logger.info(f"[AbacatePay Webhook] ✅ Plano {plan_code} ativado para user {user_id}")
+                    except Exception as e:
+                        logger.error(f"[AbacatePay Webhook] Erro ao ativar plano: {e}")
+                else:
+                    logger.warning(f"[AbacatePay Webhook] Plano não identificado na descrição: {description}")
+
+            elif not is_plan and user_id:
+                # Centelhas — creditar
+                pacotes = _get_pacotes_centelhas()
+                centelhas_total = 0
+                for code, pacote in pacotes.items():
+                    valor_centavos = int(round(pacote["preco"] * 100))
+                    if valor_centavos == amount:
+                        centelhas_total = pacote["quantidade"] + pacote.get("bonus", 0)
+                        break
+
+                if centelhas_total > 0:
+                    try:
+                        profile = supabase.table("profiles") \
+                            .select("centelhas") \
+                            .eq("id", user_id) \
+                            .maybe_single() \
+                            .execute()
+                        centelhas_atuais = profile.data.get("centelhas", 0) if profile.data else 0
+
+                        supabase.table("profiles").update({
+                            "centelhas": centelhas_atuais + centelhas_total,
+                            "updated_at": datetime.utcnow().isoformat(),
+                        }).eq("id", user_id).execute()
+                        logger.info(f"[AbacatePay Webhook] ✅ +{centelhas_total} centelhas creditadas para user {user_id}")
+                    except Exception as e:
+                        logger.error(f"[AbacatePay Webhook] Erro ao creditar centelhas: {e}")
+                else:
+                    logger.warning(f"[AbacatePay Webhook] Pacote de centelhas não encontrado para amount {amount}")
+
+        else:
+            logger.info(f"[AbacatePay Webhook] Evento {event} ignorado (não é billing.paid)")
+
+        return {"received": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AbacatePay Webhook] Erro inesperado: {e}")
+        return {"received": True, "error": str(e)}

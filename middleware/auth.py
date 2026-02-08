@@ -30,7 +30,11 @@ async def verify_api_key(
     
     # Rotas públicas que não precisam de key
     public_paths = ["/health", "/docs", "/openapi.json", "/redoc", "/"]
+    # Webhooks externos (AbacatePay) — autenticação própria via webhookSecret + HMAC
+    webhook_prefixes = ["/payments/abacatepay/webhook"]
     if request.url.path in public_paths:
+        return None
+    if any(request.url.path.startswith(p) for p in webhook_prefixes):
         return None
     
     # Verificar API key

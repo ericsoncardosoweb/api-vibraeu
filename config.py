@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     
     # AbacatePay Payment Gateway (PIX)
     abacatepay_api_key: Optional[str] = None
+    abacatepay_webhook_secret: Optional[str] = None
     
     # WhatsApp (UAZAPI)
     uazapi_server_url: str = ""

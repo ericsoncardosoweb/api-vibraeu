@@ -223,6 +223,24 @@ class AIMSEngine:
     ) -> Dict[str, Any]:
         """Build the context dictionary for variable substitution."""
         
+        user_id = user_data.get("id", "")
+        
+        # Fetch quiz onboarding answers
+        quiz_data = {}
+        try:
+            quiz_response = self.supabase.client.table("quiz_onboarding_answers") \
+                .select("*") \
+                .eq("user_id", user_id) \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
+            
+            if quiz_response.data and len(quiz_response.data) > 0:
+                quiz_data = quiz_response.data[0]
+                logger.info(f"[AIMS] Quiz onboarding data found for user {user_id}")
+        except Exception as e:
+            logger.warning(f"[AIMS] Could not fetch quiz data: {e}")
+        
         context = {
             # User variables
             "user": {
@@ -237,6 +255,19 @@ class AIMSEngine:
             # MAC variables
             "mac": {
                 "full": json.dumps(mac_data, ensure_ascii=False, default=str) if mac_data else "{}",
+            },
+            # Quiz Onboarding variables
+            "quiz": {
+                "full": json.dumps(quiz_data, ensure_ascii=False, default=str) if quiz_data else "{}",
+                "sentimento": quiz_data.get("sentimento_vida", ""),
+                "areas": ", ".join(quiz_data.get("areas_mudar", [])) if quiz_data.get("areas_mudar") else "",
+                "areas_lista": json.dumps(quiz_data.get("areas_mudar", []), ensure_ascii=False),
+                "bloqueio": quiz_data.get("bloqueio", ""),
+                "metas": quiz_data.get("metas_definidas", ""),
+                "score": str(quiz_data.get("score_alinhamento", "")),
+                "profissao": quiz_data.get("profissao", ""),
+                "estado_civil": quiz_data.get("estado_civil", ""),
+                "tem_filhos": quiz_data.get("tem_filhos", ""),
             },
             # Context variables
             "context": {
