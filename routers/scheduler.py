@@ -5,7 +5,7 @@ Scheduler endpoint - manage background scheduler.
 from fastapi import APIRouter
 from loguru import logger
 
-from scheduler.jobs import get_scheduler_status, run_scheduler_now
+from scheduler.jobs import get_scheduler_status, run_scheduler_now, centelhas_replenish_job
 
 
 router = APIRouter()
@@ -38,6 +38,17 @@ async def run_scheduler():
         "message": "Scheduler run completed",
         **result
     }
+
+
+@router.post("/replenish-centelhas")
+async def replenish_centelhas():
+    """
+    Forçar recarga manual de centelhas para todos os usuários ativos.
+    Útil para testes ou se o cron mensal não executou.
+    """
+    logger.info("Manual centelhas replenish triggered")
+    await centelhas_replenish_job()
+    return {"success": True, "message": "Centelhas replenish completed"}
 
 
 @router.post("/pause")
