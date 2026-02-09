@@ -151,10 +151,51 @@ Gere um relatório completo em HTML com:
 Conecte com aspectos astrológicos se disponíveis."""
 
 
+def _fetch_entries_from_supabase(user_id: str, period_days: int) -> list:
+    """Busca entries do diário diretamente do Supabase como fallback."""
+    try:
+        from datetime import datetime, timedelta
+        supabase = get_supabase_client()
+        
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=period_days)).strftime('%Y-%m-%d')
+        
+        result = supabase.table('daily_entries') \
+            .select('*') \
+            .eq('user_id', user_id) \
+            .gte('entry_date', start_date) \
+            .lte('entry_date', end_date) \
+            .order('entry_date', desc=False) \
+            .execute()
+        
+        if result.data:
+            logger.info(f"[Luna] Fallback Supabase: {len(result.data)} entries encontradas para user={user_id}")
+            return result.data
+        
+        return []
+    except Exception as e:
+        logger.error(f"[Luna] Erro ao buscar entries do Supabase: {e}")
+        return []
+
+
 def _build_prompt_diario(req: LunaInsightRequest) -> str:
     """Prompt para Diário de Bordo."""
     nome = req.profile.get('nome', '') if req.profile else 'o usuário'
-    entries = req.entries or req.tool_data.get('entries', []) if req.tool_data else []
+    
+    # Extrair entries — corrigir precedência do operador
+    entries = None
+    if req.entries and len(req.entries) > 0:
+        entries = req.entries
+    elif req.tool_data and isinstance(req.tool_data, dict):
+        entries = req.tool_data.get('entries', [])
+    
+    # Fallback: buscar direto do Supabase se entries veio vazio
+    if not entries or len(entries) == 0:
+        logger.warning(f"[Luna] Diário: entries vazio no payload, buscando do Supabase para user={req.user_id}")
+        entries = _fetch_entries_from_supabase(req.user_id, req.period_days or 7)
+    
+    logger.info(f"[Luna] Diário: {len(entries)} entries para processar (user={req.user_id})")
+    
     period = req.period_days or 7
     periodo_label = req.periodo_label or ('última semana' if period == 7 else f'últimos {period} dias')
     mac_ctx = _build_mac_context(req.mac)
@@ -171,6 +212,8 @@ def _build_prompt_diario(req: LunaInsightRequest) -> str:
             'areasVida': entry.get('factors', entry.get('areasVida', [])),
             'notas': entry.get('notes', entry.get('notas', ''))
         })
+    
+    logger.info(f"[Luna] Diário: {len(entries_formatted)} entries formatadas. Amostra: {entries_formatted[0] if entries_formatted else 'VAZIO'}")
     
     entries_text = json.dumps(entries_formatted, ensure_ascii=False, indent=2)
     
@@ -221,6 +264,11 @@ async def generate_luna_insight(request: LunaInsightRequest):
     
     try:
         logger.info(f"[Luna] Gerando insight para tool={request.tool_key}, user={request.user_id}")
+        
+        # Log detalhado para diário
+        if request.tool_key == 'diario':
+            entries_count = len(request.entries) if request.entries else 0
+            logger.info(f"[Luna] Diário payload: entries={entries_count}, period_days={request.period_days}, tool_data={'sim' if request.tool_data else 'não'}")
         
         # 1. Montar prompt
         prompt_builder = PROMPT_BUILDERS[request.tool_key]
