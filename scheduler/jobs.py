@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from loguru import logger
 import asyncio
+import httpx
 
 from config import get_settings
 
@@ -199,6 +200,65 @@ async def suspend_inactive_free_accounts_job():
         logger.error(f"[Suspend] Erro no job de suspensão: {e}")
 
 
+async def generate_daily_messages_job():
+    """
+    Gera mensagens do dia para todos os usuários ativos.
+    Roda diariamente às 03:01 UTC (00:01 BRT).
+    Usa a lógica Python nativa (daily_message.gerar_mensagem_para_usuario).
+    """
+    logger.info("[MensagemDia] Iniciando geração de mensagens do dia...")
+    
+    try:
+        from routers.daily_message import gerar_mensagem_para_usuario
+        from supabase import create_client
+        settings = get_settings()
+        
+        supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+        
+        # Buscar todos os usuários ativos (não suspensos)
+        profiles_result = supabase.table("profiles") \
+            .select("id, nome, email, plano, subscription_status") \
+            .neq("subscription_status", "suspended") \
+            .execute()
+        
+        if not profiles_result.data:
+            logger.info("[MensagemDia] Nenhum usuário ativo encontrado")
+            return
+        
+        users = profiles_result.data
+        logger.info(f"[MensagemDia] {len(users)} usuários ativos para gerar mensagens")
+        
+        total_geradas = 0
+        total_cached = 0
+        total_erros = 0
+        
+        for user in users:
+            try:
+                result = await gerar_mensagem_para_usuario(user["id"], "generate")
+                
+                if result.get("cached"):
+                    total_cached += 1
+                    logger.debug(f"[MensagemDia] Já existia para {user.get('email', user['id'])}")
+                else:
+                    total_geradas += 1
+                    logger.debug(f"[MensagemDia] ✓ Gerada para {user.get('email', user['id'])}")
+                
+                # Rate limiting: 1s entre chamadas LLM para evitar rate limit
+                await asyncio.sleep(1)
+                
+            except Exception as e:
+                total_erros += 1
+                logger.error(f"[MensagemDia] Erro para {user['id']}: {e}")
+        
+        logger.info(
+            f"[MensagemDia] ✅ Geração completa: {total_geradas} novas, "
+            f"{total_cached} cached, {total_erros} erros"
+        )
+        
+    except Exception as e:
+        logger.error(f"[MensagemDia] Erro no job de geração: {e}")
+
+
 def start_scheduler():
     """Start the background scheduler."""
     global _scheduler, _is_running
@@ -238,12 +298,21 @@ def start_scheduler():
         replace_existing=True
     )
     
+    # Job 4: Geração de mensagem do dia (diário às 03:01 UTC = 00:01 BRT)
+    _scheduler.add_job(
+        generate_daily_messages_job,
+        trigger=CronTrigger(hour=3, minute=1),
+        id="generate_daily_messages",
+        name="Generate Daily Messages",
+        replace_existing=True
+    )
+    
     _scheduler.start()
     _is_running = True
     
     logger.info(
         f"Scheduler started with {settings.scheduler_interval_seconds}s interval "
-        f"+ monthly centelhas replenish + daily inactive suspension"
+        f"+ monthly centelhas + daily inactive suspension + daily messages"
     )
 
 

@@ -26,6 +26,7 @@ from routers import users
 from routers import notifications
 from routers import frases
 from routers import luna
+from routers import daily_message
 from scheduler.jobs import start_scheduler, shutdown_scheduler
 from middleware.auth import verify_api_key
 
@@ -258,6 +259,16 @@ app.include_router(
     frases.router, 
     prefix="/admin",
     tags=["Frases Admin"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+# ============================================================================
+# Rotas Daily Message — Mensagem do Dia via IA (migrado de Edge Functions)
+# Protegidas por API key
+# ============================================================================
+app.include_router(
+    daily_message.router, 
+    tags=["Daily Message"],
     dependencies=[Depends(verify_api_key)]
 )
 
