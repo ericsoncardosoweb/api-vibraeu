@@ -27,6 +27,7 @@ from routers import notifications
 from routers import frases
 from routers import luna
 from routers import daily_message
+from routers import compatibility
 from scheduler.jobs import start_scheduler, shutdown_scheduler
 from middleware.auth import verify_api_key
 
@@ -269,6 +270,17 @@ app.include_router(
 app.include_router(
     daily_message.router, 
     tags=["Daily Message"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+# ============================================================================
+# Rotas de Compatibilidade — Análise via IA (GPT-4.1 mini)
+# Protegidas por API key
+# ============================================================================
+app.include_router(
+    compatibility.router, 
+    prefix="/compatibility",
+    tags=["Compatibility"],
     dependencies=[Depends(verify_api_key)]
 )
 

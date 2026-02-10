@@ -193,3 +193,137 @@ async def delete_bunny_file(
     except Exception as e:
         logger.error(f"Delete error: {e}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+
+@router.post("/generate-cover-art")
+async def generate_cover_art(data: dict):
+    """
+    Gera uma imagem artística de capa baseada no Mapa Astral do usuário.
+    Usa DALL-E 3 para gerar a imagem e faz upload para Bunny CDN.
+    """
+    import httpx
+    from datetime import datetime
+    from config import get_settings
+    
+    user_id = data.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    
+    try:
+        uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user_id format")
+    
+    settings = get_settings()
+    
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+    
+    # Buscar mapa astral do usuário
+    try:
+        import httpx as _httpx
+        headers = {
+            "apikey": settings.supabase_service_key,
+            "Authorization": f"Bearer {settings.supabase_service_key}",
+            "Content-Type": "application/json"
+        }
+        
+        async with _httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/mapas_astrais?user_id=eq.{user_id}&select=sol_signo,lua_signo,ascendente_signo,mc_signo",
+                headers=headers
+            )
+            mapa_data = resp.json()
+        
+        if not mapa_data or len(mapa_data) == 0:
+            raise HTTPException(status_code=404, detail="Mapa astral não encontrado")
+        
+        mapa = mapa_data[0]
+        sol = mapa.get("sol_signo", "Aries")
+        lua = mapa.get("lua_signo", "Cancer")
+        asc = mapa.get("ascendente_signo", "Leo")
+        mc = mapa.get("mc_signo", "Capricorn")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching mapa astral: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar mapa astral")
+    
+    # Gerar prompt artístico
+    prompt = (
+        f"Create a mystical, abstract, artistic cover image for a spiritual profile. "
+        f"The image should visually represent the astrological quartet: "
+        f"Sun in {sol}, Moon in {lua}, Ascendant in {asc}, Midheaven in {mc}. "
+        f"Use cosmic elements like nebulae, constellations, and celestial bodies. "
+        f"Color palette inspired by the zodiac signs. "
+        f"Wide banner format (1200x400), dreamy and ethereal style, "
+        f"no text, no letters, no words, purely visual art. "
+        f"High quality, digital art, vibrant colors."
+    )
+    
+    # Chamar DALL-E 3
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            dalle_resp = await client.post(
+                "https://api.openai.com/v1/images/generations",
+                headers={
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "dall-e-3",
+                    "prompt": prompt,
+                    "n": 1,
+                    "size": "1792x1024",
+                    "quality": "standard"
+                }
+            )
+            
+            if dalle_resp.status_code != 200:
+                logger.error(f"DALL-E error: {dalle_resp.status_code} - {dalle_resp.text}")
+                raise HTTPException(status_code=502, detail="Erro ao gerar imagem com IA")
+            
+            image_url = dalle_resp.json()["data"][0]["url"]
+        
+        # Download da imagem gerada
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            img_resp = await client.get(image_url)
+            image_bytes = img_resp.content
+        
+        # Upload para Bunny CDN
+        bunny = get_bunny_storage()
+        if not bunny:
+            raise HTTPException(status_code=503, detail="Upload service not available")
+        
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        filename = f"{user_id}_{timestamp}_cover.png"
+        cdn_url = await bunny.upload_file(image_bytes, "covers", filename)
+        
+        # Atualizar community_profiles
+        async with httpx.AsyncClient() as client:
+            await client.patch(
+                f"{settings.supabase_url}/rest/v1/community_profiles?user_id=eq.{user_id}",
+                headers={
+                    "apikey": settings.supabase_service_key,
+                    "Authorization": f"Bearer {settings.supabase_service_key}",
+                    "Content-Type": "application/json",
+                    "Prefer": "return=minimal"
+                },
+                json={"cover_image": cdn_url}
+            )
+        
+        logger.info(f"Cover art generated for user {user_id}: {cdn_url}")
+        
+        return {
+            "success": True,
+            "url": cdn_url,
+            "message": "Cover art generated successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Cover art generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar capa: {str(e)}")
+
