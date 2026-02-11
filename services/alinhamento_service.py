@@ -298,19 +298,6 @@ async def buscar_dados_complementares(user_id: str, mes_referencia: str) -> Dict
     except Exception as e:
         logger.warning(f"[Alinhamento] Erro ao buscar Perfil Comportamental: {e}")
 
-    # Numerologia (user_infos_data, action='numerologia')
-    numerologia = None
-    try:
-        resp = supabase.table("user_infos_data") \
-            .select("metadata") \
-            .eq("user_id", user_id) \
-            .eq("action", "numerologia") \
-            .maybe_single() \
-            .execute()
-        if resp.data and resp.data.get("metadata"):
-            numerologia = resp.data["metadata"]
-    except Exception as e:
-        logger.warning(f"[Alinhamento] Erro ao buscar Numerologia: {e}")
 
     # Relatório Mensal do Diário
     relatorio_diario = None
@@ -346,7 +333,6 @@ async def buscar_dados_complementares(user_id: str, mes_referencia: str) -> Dict
         "mac": mac_data,
         "roda_da_vida": roda_da_vida,
         "perfil_comportamental": perfil_comportamental,
-        "numerologia": numerologia,
         "relatorio_diario": relatorio_diario,
         "relatorio_metas": relatorio_metas,
     }
@@ -737,10 +723,9 @@ def _montar_dados_prompt(
     resumo_diario = _resumo_relatorio(dados.get("relatorio_diario"), "diário")
     resumo_metas = _resumo_relatorio(dados.get("relatorio_metas"), "metas")
 
-    # Numerologia
+    # Numerologia (calculada localmente, sem DB)
     data_nasc = perfil.get("data_nascimento") or perfil.get("dataNascimento")
-    numerologia_db = dados.get("numerologia")
-    numerologia_compacta = formatar_numerologia_compacta(data_nasc, numerologia_db)
+    numerologia_compacta = formatar_numerologia_compacta(data_nasc, None)
 
     base = {
         "data_atual": agora.strftime("%d/%m/%Y"),

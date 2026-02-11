@@ -207,16 +207,27 @@ class LLMGateway:
     
     def _initialize_providers(self):
         """Initialize available providers based on API keys."""
+        # Diagnostic: log loaded settings
+        openai_key = self.settings.openai_api_key or ""
+        groq_key = self.settings.groq_api_key or ""
+        logger.info(
+            f"LLM Config loaded: "
+            f"default={self.settings.default_provider}/{self.settings.default_model}, "
+            f"fallback={self.settings.fallback_provider}/{self.settings.fallback_model}, "
+            f"openai_key={openai_key[:8]}...{openai_key[-4:] if len(openai_key) > 12 else '??'}, "
+            f"groq_key={groq_key[:8]}...{groq_key[-4:] if len(groq_key) > 12 else '??'}"
+        )
+        
         if self.settings.openai_api_key:
             self._providers["openai"] = OpenAIProvider(
                 self.settings.openai_api_key,
-                self.settings.default_model
+                "gpt-4.1-mini"
             )
         
         if self.settings.groq_api_key:
             self._providers["groq"] = GroqProvider(
                 self.settings.groq_api_key,
-                self.settings.fallback_model
+                "llama-3.3-70b-versatile"
             )
         
         if self.settings.gemini_api_key:
