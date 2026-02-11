@@ -11,6 +11,60 @@ import json
 from services.supabase_client import get_supabase_client
 from services.llm_gateway import LLMGateway
 
+import re
+
+
+def _parse_llm_json(raw: str) -> dict:
+    """Parseia resposta JSON do LLM com tratamento robusto."""
+    text = raw.strip()
+
+    # Remover code fences
+    if "```json" in text:
+        text = text.split("```json", 1)[1]
+        if "```" in text:
+            text = text.split("```", 1)[0]
+    elif "```" in text:
+        text = text.split("```", 1)[1]
+        if "```" in text:
+            text = text.split("```", 1)[0]
+
+    text = text.strip()
+
+    # 1. Tentar parse direto
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # 2. Corrigir newlines não-escaped
+    try:
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            json_str = text[start:end]
+            fixed = json_str.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n").replace("\t", "\\t")
+            return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+
+    # 3. Fallback: extrair campos via regex
+    logger.warning("[MonthlyReports] JSON parse falhou, extraindo via regex")
+    result = {}
+
+    for field in ["report_html", "report", "frase_final", "frase_motivacional"]:
+        match = re.search(rf'"{field}"\s*:\s*"(.*?)(?:"\s*[,}}])', text, re.DOTALL)
+        if match:
+            result[field] = match.group(1).replace("\\n", "\n").replace('\\"', '"')
+
+    # Extrair patterns_identified (array)
+    patterns_match = re.search(r'"patterns_identified"\s*:\s*\[(.*?)\]', text, re.DOTALL)
+    if patterns_match:
+        result["patterns_identified"] = [s.strip().strip('"') for s in re.findall(r'"([^"]+)"', patterns_match.group(1))]
+
+    if not result:
+        result["report_html"] = text
+
+    return result
 
 def get_mes_referencia(mes: Optional[str] = None) -> str:
     """Retorna mês de referência no formato YYYY-MM."""
