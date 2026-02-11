@@ -802,9 +802,11 @@ def _escolher_prompt_espelho(cenario: str) -> str:
 
 
 def _parse_llm_json(raw: str) -> Dict[str, Any]:
-    """Parseia resposta JSON do LLM."""
+    """Parseia resposta JSON do LLM com tratamento robusto."""
+    import re
     text = raw.strip()
 
+    # 1. Remover code fences (```json ... ```)
     if "```json" in text:
         text = text.split("```json", 1)[1]
         if "```" in text:
@@ -816,11 +818,61 @@ def _parse_llm_json(raw: str) -> Dict[str, Any]:
 
     text = text.strip()
 
+    # 2. Tentar parse direto
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        logger.warning("[Alinhamento] Não foi possível parsear JSON, usando como HTML")
-        return {"report": raw, "final_phrase": ""}
+        pass
+
+    # 3. Tentar corrigir newlines não-escaped dentro de strings JSON
+    try:
+        # Encontrar o JSON object (primeiro { até último })
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            json_str = text[start:end]
+            # Substituir newlines reais por \n dentro de strings
+            # Abordagem: substituir todas as newlines por \\n e tabs por \\t
+            fixed = json_str.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n").replace("\t", "\\t")
+            return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+
+    # 4. Fallback: extrair campos via regex
+    logger.warning("[Alinhamento] JSON parse falhou, extraindo campos via regex")
+    result = {}
+
+    # Extrair report (campo principal com HTML)
+    report_match = re.search(r'"report"\s*:\s*"(.*?)(?:"\s*[,}])', text, re.DOTALL)
+    if report_match:
+        result["report"] = report_match.group(1).replace("\\n", "\n").replace('\\"', '"')
+    else:
+        # Se não achei o campo report, usar o texto inteiro como HTML
+        # Mas limpar qualquer JSON wrapping
+        clean = text
+        if clean.startswith('{"report":'):
+            clean = clean[len('{"report":'):].strip().strip('"')
+        if clean.endswith('"}'):
+            clean = clean[:-2]
+        result["report"] = clean
+
+    # Extrair campos extras
+    for field in ["final_phrase", "main_blind_spot", "main_strength", "dissonance_level",
+                   "personal_year_theme", "rhythm_status", "strategic_focus"]:
+        match = re.search(rf'"{field}"\s*:\s*"([^"]*)"', text)
+        if match:
+            result[field] = match.group(1)
+
+    # Extrair action_steps (array de strings)
+    steps_match = re.search(r'"action_steps"\s*:\s*\[(.*?)\]', text, re.DOTALL)
+    if steps_match:
+        steps_raw = steps_match.group(1)
+        result["action_steps"] = [s.strip().strip('"') for s in re.findall(r'"([^"]+)"', steps_raw)]
+
+    if not result.get("final_phrase"):
+        result["final_phrase"] = ""
+
+    return result
 
 
 async def _gerar_insight(
