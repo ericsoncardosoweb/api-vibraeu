@@ -124,7 +124,7 @@ class SupabaseService:
             
             response = self.client.table("adv_execution_queue") \
                 .select("*, template:adv_interpretation_templates(*)") \
-                .eq("status", "pending") \
+                .in_("status", ["pending", "retry_pending"]) \
                 .lte("scheduled_for", now) \
                 .order("scheduled_for") \
                 .limit(limit) \
@@ -144,8 +144,11 @@ class SupabaseService:
     ) -> bool:
         """Update queue item status."""
         try:
+            # retry_pending é convertido para pending no DB, mas incrementa retry_count
+            actual_status = "pending" if status == "retry_pending" else status
+            
             update_data = {
-                "status": status,
+                "status": actual_status,
                 "updated_at": datetime.utcnow().isoformat()
             }
             
@@ -154,9 +157,9 @@ class SupabaseService:
             elif status == "completed":
                 update_data["completed_at"] = datetime.utcnow().isoformat()
                 update_data["result_content"] = result_content
-            elif status == "failed":
+            elif status in ("failed", "retry_pending"):
                 update_data["error_log"] = error_log
-                # Increment retry count
+                # Increment retry count on both failed and retry_pending
                 item = await self.get_queue_item(queue_id)
                 if item:
                     update_data["retry_count"] = item.get("retry_count", 0) + 1

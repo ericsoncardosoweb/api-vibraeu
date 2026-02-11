@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from loguru import logger
 import json
+import asyncio
 
 from .supabase_client import SupabaseService
 from .llm_gateway import LLMGateway
@@ -236,19 +237,23 @@ class InterpretationService:
             current_retries = queue_item.get("retry_count", 0)
             max_retries = queue_item.get("max_retries", 3)
             
-            if current_retries < max_retries:
-                # Schedule for retry
-                await self.db.update_queue_status(
-                    queue_id=queue_id,
-                    status="pending",
-                    error_log=error_msg
-                )
-            else:
-                # Max retries reached
+            # Erros de autenticação/autorização não devem ser re-tentados
+            is_auth_error = "401" in error_msg or "Unauthorized" in error_msg or "403" in error_msg
+            
+            if is_auth_error or current_retries >= max_retries:
+                # Erro fatal ou max retries — marcar como failed
+                fail_reason = f"Auth error (não re-tentável): {error_msg}" if is_auth_error else f"Max retries ({max_retries}) reached. Last error: {error_msg}"
                 await self.db.update_queue_status(
                     queue_id=queue_id,
                     status="failed",
-                    error_log=f"Max retries reached. Last error: {error_msg}"
+                    error_log=fail_reason
+                )
+            else:
+                # Schedule for retry (incrementa retry_count)
+                await self.db.update_queue_status(
+                    queue_id=queue_id,
+                    status="retry_pending",
+                    error_log=error_msg
                 )
             
             return {
@@ -259,7 +264,7 @@ class InterpretationService:
     
     async def process_pending(self, limit: int = 10) -> Dict[str, Any]:
         """
-        Process pending queue items.
+        Process pending queue items with throttling.
         
         Args:
             limit: Maximum items to process
@@ -278,13 +283,25 @@ class InterpretationService:
         
         results = []
         errors = []
+        consecutive_errors = 0
         
-        for item in pending_items:
+        for i, item in enumerate(pending_items):
+            # Throttle: esperar entre items (exceto o primeiro)
+            if i > 0:
+                await asyncio.sleep(3)  # 3s de intervalo entre chamadas LLM
+            
             result = await self.process_queue_item(item)
             if result["success"]:
                 results.append(result)
+                consecutive_errors = 0
             else:
                 errors.append(result.get("error", "Unknown error"))
+                consecutive_errors += 1
+                
+                # Se 3 erros consecutivos, parar o batch (provavelmente problema sistêmico)
+                if consecutive_errors >= 3:
+                    logger.warning(f"[AIMS] ⚠ {consecutive_errors} erros consecutivos — parando batch para evitar desperdício")
+                    break
         
         return {
             "success": len(errors) == 0,
