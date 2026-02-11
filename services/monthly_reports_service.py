@@ -334,7 +334,7 @@ async def buscar_perfil_usuario(user_id: str) -> Dict[str, Any]:
     supabase = get_supabase_client()
     
     try:
-        response = supabase.table("users") \
+        response = supabase.table("profiles") \
             .select("nome, sexo, profissao, data_nascimento, estado_civil, tem_filhos") \
             .eq("id", user_id) \
             .single() \

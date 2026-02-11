@@ -124,7 +124,7 @@ class SupabaseService:
             
             response = self.client.table("adv_execution_queue") \
                 .select("*, template:adv_interpretation_templates(*)") \
-                .in_("status", ["pending", "retry_pending"]) \
+                .eq("status", "pending") \
                 .lte("scheduled_for", now) \
                 .order("scheduled_for") \
                 .limit(limit) \
@@ -140,15 +140,13 @@ class SupabaseService:
         queue_id: str,
         status: str,
         result_content: Optional[str] = None,
-        error_log: Optional[str] = None
+        error_log: Optional[str] = None,
+        increment_retry: bool = False
     ) -> bool:
         """Update queue item status."""
         try:
-            # retry_pending é convertido para pending no DB, mas incrementa retry_count
-            actual_status = "pending" if status == "retry_pending" else status
-            
             update_data = {
-                "status": actual_status,
+                "status": status,
                 "updated_at": datetime.utcnow().isoformat()
             }
             
@@ -157,10 +155,17 @@ class SupabaseService:
             elif status == "completed":
                 update_data["completed_at"] = datetime.utcnow().isoformat()
                 update_data["result_content"] = result_content
-            elif status in ("failed", "retry_pending"):
+            elif status == "failed":
                 update_data["error_log"] = error_log
-                # Increment retry count on both failed and retry_pending
+                # Increment retry count on failed
                 item = await self.get_queue_item(queue_id)
+                if item:
+                    update_data["retry_count"] = item.get("retry_count", 0) + 1
+            
+            # Increment retry count when re-queuing as pending after error
+            if increment_retry:
+                update_data["error_log"] = error_log
+                item = await self.get_queue_item(queue_id) if "retry_count" not in update_data else None
                 if item:
                     update_data["retry_count"] = item.get("retry_count", 0) + 1
             

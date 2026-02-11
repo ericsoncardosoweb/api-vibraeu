@@ -252,8 +252,9 @@ class InterpretationService:
                 # Schedule for retry (incrementa retry_count)
                 await self.db.update_queue_status(
                     queue_id=queue_id,
-                    status="retry_pending",
-                    error_log=error_msg
+                    status="pending",
+                    error_log=error_msg,
+                    increment_retry=True
                 )
             
             return {

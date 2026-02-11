@@ -918,7 +918,7 @@ async def gerar_insights_alinhamento(
     try:
         supabase.table("alinhamento_insights").update({
             "espelho": espelho,
-            "status": "partial",
+            "status": "generating",
         }).eq("user_id", user_id).eq("mes_referencia", mes).execute()
         logger.info("[Alinhamento] ✅ Espelho salvo")
     except Exception as e:
