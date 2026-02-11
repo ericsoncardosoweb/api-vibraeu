@@ -28,6 +28,8 @@ from routers import frases
 from routers import luna
 from routers import daily_message
 from routers import compatibility
+from routers import monthly_reports
+from routers import alinhamento
 from scheduler.jobs import start_scheduler, shutdown_scheduler
 from middleware.auth import verify_api_key
 
@@ -281,6 +283,27 @@ app.include_router(
     compatibility.router, 
     prefix="/compatibility",
     tags=["Compatibility"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+# ============================================================================
+# Rotas de Relatórios Mensais — Diário de Bordo e Metas/Hábitos
+# Protegidas por API key
+# ============================================================================
+app.include_router(
+    monthly_reports.router, 
+    prefix="/luna",
+    tags=["Luna Reports"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+# ============================================================================
+# Rotas de Alinhamento — Insights Espelho/Fluxo/Caminho (migrado de n8n)
+# Protegidas por API key
+# ============================================================================
+app.include_router(
+    alinhamento.router, 
+    tags=["Alinhamento Insights"],
     dependencies=[Depends(verify_api_key)]
 )
 

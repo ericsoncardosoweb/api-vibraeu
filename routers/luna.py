@@ -332,3 +332,199 @@ async def generate_luna_insight(request: LunaInsightRequest):
             error=error_msg,
             mode="sync"
         )
+
+
+# =============================================
+# GERAÇÃO DE BIO PARA COMUNIDADE
+# =============================================
+
+class GenerateBioRequest(BaseModel):
+    """Requisição de geração de bio."""
+    user_id: str
+    tom: str = "poder"  # poder | amizades | negocios | conexoes | love
+
+
+class GenerateBioResponse(BaseModel):
+    """Resposta com opções de bio."""
+    success: bool
+    bios: Optional[List[str]] = None
+    error: Optional[str] = None
+
+
+TONS_BIO = {
+    "poder": "Transmita força interior, autoridade natural e presença magnética. Frases que mostrem autoconfiança e determinação.",
+    "amizades": "Transmita abertura, calor humano, receptividade e energia social. Frases que convidem conexão e acolhimento.",
+    "negocios": "Transmita profissionalismo, visão estratégica e credibilidade. Frases que mostrem competência e ambição saudável.",
+    "conexoes": "Transmita profundidade, busca por relações autênticas e autoconhecimento. Frases que mostrem sensibilidade e maturidade.",
+    "love": "Transmita romantismo sutil, magnetismo e disponibilidade emocional. Frases que mostrem abertura para o amor e sensualidade."
+}
+
+VARIACOES_ESTILO = [
+    "Use uma metáfora cósmica ou astrológica sutil.",
+    "Use um tom poético e filosófico.",
+    "Use humor inteligente e leveza.",
+    "Use energia e dinamismo, estilo urbano contemporâneo.",
+    "Use uma frase impactante e direta, estilo manifesto pessoal."
+]
+
+
+@router.post("/generate-bio", response_model=GenerateBioResponse)
+async def generate_bio(request: GenerateBioRequest):
+    """
+    Gera 5 opções criativas de bio para perfil na comunidade.
+    Usa dados do perfil + MAC para personalização profunda.
+    """
+    tom = request.tom.lower().strip()
+    if tom not in TONS_BIO:
+        tom = "poder"
+    
+    try:
+        supabase = get_supabase_client()
+        
+        # 1. Buscar perfil do usuário
+        profile_result = supabase.table("profiles") \
+            .select("nome, nickname, sexo, profissao, estado_civil, tem_filhos, data_nascimento") \
+            .eq("id", request.user_id) \
+            .maybeSingle() \
+            .execute()
+        
+        profile = profile_result.data or {}
+        
+        # 2. Buscar MAC
+        mac_result = supabase.table("mapas_astrais") \
+            .select("sol_signo, lua_signo, ascendente_signo, mc_signo") \
+            .eq("user_id", request.user_id) \
+            .maybeSingle() \
+            .execute()
+        
+        mac = mac_result.data or {}
+        
+        # 3. Calcular idade
+        idade_info = ""
+        if profile.get("data_nascimento"):
+            from datetime import datetime
+            try:
+                nasc = datetime.strptime(profile["data_nascimento"], "%Y-%m-%d")
+                idade = (datetime.now() - nasc).days // 365
+                if idade < 25:
+                    idade_info = f"Pessoa jovem ({idade} anos) — use linguagem mais atual e energética."
+                elif idade < 35:
+                    idade_info = f"Adulto jovem ({idade} anos) — equilibre modernidade com maturidade."
+                elif idade < 50:
+                    idade_info = f"Adulto ({idade} anos) — use tom confiante e sofisticado."
+                else:
+                    idade_info = f"Pessoa madura ({idade} anos) — use tom sábio e elegante."
+            except Exception:
+                pass
+        
+        # 4. Montar contexto do perfil
+        nome = profile.get("nickname") or (profile.get("nome", "").split(" ")[0] if profile.get("nome") else "")
+        sexo = profile.get("sexo", "")
+        profissao = profile.get("profissao", "")
+        estado_civil = profile.get("estado_civil", "")
+        tem_filhos = profile.get("tem_filhos", "")
+        
+        genero_ref = "feminino" if sexo == "Feminino" else "masculino" if sexo == "Masculino" else "neutro"
+        
+        ctx_pessoal = []
+        if estado_civil:
+            ctx_pessoal.append(f"Estado civil: {estado_civil}")
+        if tem_filhos:
+            ctx_pessoal.append(f"Tem filhos: {'Sim' if tem_filhos == 'sim' else 'Não'}")
+        if profissao:
+            ctx_pessoal.append(f"Profissão: {profissao}")
+        
+        ctx_astral = []
+        if mac.get("sol_signo"):
+            ctx_astral.append(f"Sol em {mac['sol_signo']}")
+        if mac.get("lua_signo"):
+            ctx_astral.append(f"Lua em {mac['lua_signo']}")
+        if mac.get("ascendente_signo"):
+            ctx_astral.append(f"Ascendente em {mac['ascendente_signo']}")
+        
+        import json
+        
+        # 5. Montar prompt
+        prompt = f"""Gere EXATAMENTE 5 opções de bio para o perfil na comunidade de {nome or 'esta pessoa'}.
+
+CONTEXTO DO USUÁRIO:
+- Nome: {nome or 'não informado'}
+- Gênero: {genero_ref}
+{chr(10).join(f'- {c}' for c in ctx_pessoal) if ctx_pessoal else '- Sem dados pessoais adicionais'}
+
+MAPA ASTRAL:
+{chr(10).join(f'- {c}' for c in ctx_astral) if ctx_astral else '- Sem dados astrológicos'}
+
+{idade_info}
+
+TOM DESEJADO: {TONS_BIO[tom]}
+
+REGRAS CRÍTICAS:
+1. Cada bio deve ter NO MÁXIMO 200 caracteres
+2. Use 1-2 emojis estratégicos por bio (no início ou final)
+3. NUNCA mencione dados óbvios como nome ou idade
+4. Foque no que AGREGA: essência, energia, propósito
+5. Se a pessoa é solteira e jovem, capture essa vibe. Se é casada com filhos, capture essa outra realidade
+6. Integre sutilmente a energia do signo solar quando fizer sentido, SEM ser literal ("sou do signo X")
+7. Cada bio deve ter um ESTILO DIFERENTE de escrita:
+   - Bio 1: {VARIACOES_ESTILO[0]}
+   - Bio 2: {VARIACOES_ESTILO[1]}
+   - Bio 3: {VARIACOES_ESTILO[2]}
+   - Bio 4: {VARIACOES_ESTILO[3]}
+   - Bio 5: {VARIACOES_ESTILO[4]}
+8. A profissão pode ser mencionada de forma criativa em NO MÁXIMO 2 das 5 opções
+9. Cada bio deve funcionar sozinha como uma mini-apresentação impactante
+
+Retorne APENAS um JSON válido no formato:
+{{"bios": ["bio1", "bio2", "bio3", "bio4", "bio5"]}}
+
+Sem explicações, sem markdown, somente o JSON."""
+
+        # 6. Chamar LLM
+        llm = LLMGateway.get_instance()
+        
+        result = await llm.generate(
+            prompt=prompt,
+            config={
+                "provider": "openai",
+                "model": "gpt-4.1-mini",
+                "temperature": 0.9,
+                "max_tokens": 1500,
+                "fallback_provider": "groq",
+                "fallback_model": "llama-3.3-70b-versatile"
+            },
+            system_prompt="Você é um copywriter especialista em social media e personal branding. Gera textos de bio curtos, criativos e impactantes. Responda APENAS com o JSON solicitado, sem explicações adicionais."
+        )
+        
+        if not result:
+            raise ValueError("Resposta vazia da IA")
+        
+        # 7. Parsear JSON da resposta
+        # Limpar possível markdown
+        cleaned = result.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        
+        parsed = json.loads(cleaned)
+        bios = parsed.get("bios", [])
+        
+        if not bios or len(bios) < 3:
+            raise ValueError(f"Resposta inválida: esperava 5 bios, recebeu {len(bios)}")
+        
+        # Truncar bios que ultrapassem 300 chars (safety)
+        bios = [b.strip()[:300] for b in bios[:5]]
+        
+        logger.info(f"[Luna] ✅ Bio gerada para user={request.user_id}, tom={tom}, {len(bios)} opções")
+        
+        return GenerateBioResponse(success=True, bios=bios)
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"[Luna] Erro ao parsear JSON da bio: {e}")
+        return GenerateBioResponse(success=False, error="Erro ao processar resposta da IA. Tente novamente.")
+    except Exception as e:
+        logger.error(f"[Luna] ❌ Erro ao gerar bio: {e}")
+        return GenerateBioResponse(success=False, error="Erro ao gerar bio. Tente novamente.")
+

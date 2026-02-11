@@ -204,6 +204,7 @@ async def generate_cover_art(data: dict):
     import httpx
     from datetime import datetime
     from config import get_settings
+    from services.supabase_client import get_supabase_client
     
     user_id = data.get("user_id")
     if not user_id:
@@ -219,26 +220,18 @@ async def generate_cover_art(data: dict):
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="OpenAI API key not configured")
     
-    # Buscar mapa astral do usuário
+    # Buscar mapa astral do usuário via Supabase client
     try:
-        import httpx as _httpx
-        headers = {
-            "apikey": settings.supabase_service_key,
-            "Authorization": f"Bearer {settings.supabase_service_key}",
-            "Content-Type": "application/json"
-        }
+        supabase = get_supabase_client()
+        result = supabase.table("mapas_astrais") \
+            .select("sol_signo, lua_signo, ascendente_signo, mc_signo") \
+            .eq("user_id", user_id) \
+            .execute()
         
-        async with _httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{settings.supabase_url}/rest/v1/mapas_astrais?user_id=eq.{user_id}&select=sol_signo,lua_signo,ascendente_signo,mc_signo",
-                headers=headers
-            )
-            mapa_data = resp.json()
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(status_code=404, detail="Mapa astral não encontrado. Gere seu MAC primeiro.")
         
-        if not mapa_data or len(mapa_data) == 0:
-            raise HTTPException(status_code=404, detail="Mapa astral não encontrado")
-        
-        mapa = mapa_data[0]
+        mapa = result.data[0]
         sol = mapa.get("sol_signo", "Aries")
         lua = mapa.get("lua_signo", "Cancer")
         asc = mapa.get("ascendente_signo", "Leo")
@@ -262,9 +255,10 @@ async def generate_cover_art(data: dict):
         f"High quality, digital art, vibrant colors."
     )
     
-    # Chamar DALL-E 3
+    # Chamar DALL-E 3 com timeout adequado
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            logger.info(f"Generating cover art for user {user_id} (Sol:{sol}, Lua:{lua})")
             dalle_resp = await client.post(
                 "https://api.openai.com/v1/images/generations",
                 headers={
@@ -281,37 +275,40 @@ async def generate_cover_art(data: dict):
             )
             
             if dalle_resp.status_code != 200:
-                logger.error(f"DALL-E error: {dalle_resp.status_code} - {dalle_resp.text}")
-                raise HTTPException(status_code=502, detail="Erro ao gerar imagem com IA")
+                error_detail = dalle_resp.text[:200]
+                logger.error(f"DALL-E error: {dalle_resp.status_code} - {error_detail}")
+                raise HTTPException(
+                    status_code=502, 
+                    detail=f"Erro na geração de imagem (HTTP {dalle_resp.status_code})"
+                )
             
             image_url = dalle_resp.json()["data"][0]["url"]
         
         # Download da imagem gerada
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             img_resp = await client.get(image_url)
+            if img_resp.status_code != 200:
+                raise HTTPException(status_code=502, detail="Erro ao baixar imagem gerada")
             image_bytes = img_resp.content
         
         # Upload para Bunny CDN
         bunny = get_bunny_storage()
         if not bunny:
-            raise HTTPException(status_code=503, detail="Upload service not available")
+            raise HTTPException(status_code=503, detail="Serviço de upload não disponível")
         
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         filename = f"{user_id}_{timestamp}_cover.png"
         cdn_url = await bunny.upload_file(image_bytes, "covers", filename)
         
-        # Atualizar community_profiles
-        async with httpx.AsyncClient() as client:
-            await client.patch(
-                f"{settings.supabase_url}/rest/v1/community_profiles?user_id=eq.{user_id}",
-                headers={
-                    "apikey": settings.supabase_service_key,
-                    "Authorization": f"Bearer {settings.supabase_service_key}",
-                    "Content-Type": "application/json",
-                    "Prefer": "return=minimal"
-                },
-                json={"cover_image": cdn_url}
-            )
+        # Atualizar community_profiles via Supabase client
+        try:
+            supabase.table("community_profiles") \
+                .update({"cover_image": cdn_url}) \
+                .eq("user_id", user_id) \
+                .execute()
+        except Exception as e:
+            logger.warning(f"Could not update community_profiles: {e}")
+            # Não falhar por isso — a imagem já foi gerada
         
         logger.info(f"Cover art generated for user {user_id}: {cdn_url}")
         
@@ -323,6 +320,12 @@ async def generate_cover_art(data: dict):
         
     except HTTPException:
         raise
+    except httpx.TimeoutException:
+        logger.error(f"Timeout generating cover art for user {user_id}")
+        raise HTTPException(
+            status_code=504, 
+            detail="Timeout na geração de imagem. Tente novamente em alguns minutos."
+        )
     except Exception as e:
         logger.error(f"Cover art generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao gerar capa: {str(e)}")
