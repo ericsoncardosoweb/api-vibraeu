@@ -493,10 +493,10 @@ Gere um relatório profundo e revelador. Retorne APENAS o JSON."""
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT_DIARIO,
             config={
-                "provider": "groq",
-                "model": "llama-3.3-70b-versatile",
-                "fallback_provider": "openai",
-                "fallback_model": "gpt-4.1-mini",
+                "provider": "openai",
+                "model": "gpt-4.1-mini",
+                "fallback_provider": "groq",
+                "fallback_model": "llama-3.3-70b-versatile",
                 "temperature": 0.7,
                 "max_tokens": 4000
             }
@@ -648,10 +648,10 @@ Gere um relatório profundo e revelador. Retorne APENAS o JSON."""
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT_METAS,
             config={
-                "provider": "groq",
-                "model": "llama-3.3-70b-versatile",
-                "fallback_provider": "openai",
-                "fallback_model": "gpt-4.1-mini",
+                "provider": "openai",
+                "model": "gpt-4.1-mini",
+                "fallback_provider": "groq",
+                "fallback_model": "llama-3.3-70b-versatile",
                 "temperature": 0.7,
                 "max_tokens": 4000
             }
