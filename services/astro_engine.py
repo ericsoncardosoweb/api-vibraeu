@@ -201,8 +201,7 @@ def extrair_dados_tecnicos(sujeito, chart_data):
     """
     # Planetas
     lista_corpos = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", 
-                    "Saturn", "Uranus", "Neptune", "Pluto", "Chiron", 
-                    "North_Node", "Lilith"]
+                    "Saturn", "Uranus", "Neptune", "Pluto", "Chiron"]
     dados_planetas = []
     for nome_corpo in lista_corpos:
         obj = getattr(sujeito, nome_corpo.lower(), None)
@@ -239,9 +238,50 @@ def extrair_dados_tecnicos(sujeito, chart_data):
     # Aspectos
     aspectos = _extrair_aspectos(chart_data)
 
-    # Elementos e Qualidades
-    elementos = _calcular_elementos(dados_planetas, asc_signo, mc_signo)
-    qualidades = _calcular_qualidades(dados_planetas, asc_signo, mc_signo)
+    # ================================================================
+    # Elementos e Qualidades — extrair do Kerykeion v5 nativo
+    # Usa chart_data.element_distribution / quality_distribution
+    # (mesmos valores exibidos no gráfico SVG)
+    # ================================================================
+    elementos = None
+    qualidades = None
+    
+    try:
+        ed = getattr(chart_data, 'element_distribution', None)
+        if ed:
+            elementos = {
+                "fogo": round(getattr(ed, 'fire_percentage', 0)),
+                "terra": round(getattr(ed, 'earth_percentage', 0)),
+                "ar": round(getattr(ed, 'air_percentage', 0)),
+                "agua": round(getattr(ed, 'water_percentage', 0)),
+            }
+            elementos["dominante"] = max(
+                ["fogo", "terra", "ar", "agua"],
+                key=lambda k: elementos[k]
+            )
+    except Exception as e:
+        logger.warning(f"Erro ao extrair element_distribution nativo: {e}")
+
+    try:
+        qd = getattr(chart_data, 'quality_distribution', None)
+        if qd:
+            qualidades = {
+                "cardinal": round(getattr(qd, 'cardinal_percentage', 0)),
+                "fixo": round(getattr(qd, 'fixed_percentage', 0)),
+                "mutavel": round(getattr(qd, 'mutable_percentage', 0)),
+            }
+            qualidades["dominante"] = max(
+                ["cardinal", "fixo", "mutavel"],
+                key=lambda k: qualidades[k]
+            )
+    except Exception as e:
+        logger.warning(f"Erro ao extrair quality_distribution nativo: {e}")
+
+    # Fallback: cálculo manual se Kerykeion v5 não forneceu
+    if not elementos:
+        elementos = _calcular_elementos(dados_planetas, asc_signo, mc_signo)
+    if not qualidades:
+        qualidades = _calcular_qualidades(dados_planetas, asc_signo, mc_signo)
 
     return {
         "planetas": dados_planetas,
