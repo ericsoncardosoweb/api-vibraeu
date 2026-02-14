@@ -60,8 +60,145 @@ def gerar_sujeito_final(nome, ano, mes, dia, hora, minuto, lat, lng, cidade_nome
         )
 
 
+# ============================================================================
+# Mapeamentos astrológicos para cálculos de elementos/qualidades
+# ============================================================================
+
+SIGNO_ELEMENTO = {
+    "Ari": "Fogo", "Tau": "Terra", "Gem": "Ar", "Can": "Água",
+    "Leo": "Fogo", "Vir": "Terra", "Lib": "Ar", "Sco": "Água",
+    "Sag": "Fogo", "Cap": "Terra", "Aqu": "Ar", "Pis": "Água"
+}
+
+SIGNO_QUALIDADE = {
+    "Ari": "Cardinal", "Tau": "Fixo", "Gem": "Mutável", "Can": "Cardinal",
+    "Leo": "Fixo", "Vir": "Mutável", "Lib": "Cardinal", "Sco": "Fixo",
+    "Sag": "Mutável", "Cap": "Cardinal", "Aqu": "Fixo", "Pis": "Mutável"
+}
+
+# Pesos: Sol/Lua=2, pessoais=4, geracionais=1 (consistente com alinhamento_service)
+PESOS_PLANETAS = {
+    "Sun": 2, "Moon": 2,
+    "Mercury": 4, "Venus": 4, "Mars": 4,
+    "Jupiter": 4, "Saturn": 4,
+    "Uranus": 1, "Neptune": 1, "Pluto": 1
+}
+
+
+def _calcular_elementos(dados_planetas, asc_signo, mc_signo):
+    """Calcula distribuição percentual dos 4 elementos (Fogo/Terra/Ar/Água)."""
+    soma = {"Fogo": 0, "Terra": 0, "Ar": 0, "Água": 0}
+
+    for p in dados_planetas:
+        peso = PESOS_PLANETAS.get(p.get("planeta"), 0)
+        elemento = SIGNO_ELEMENTO.get(p.get("signo"))
+        if peso and elemento:
+            soma[elemento] += peso
+
+    # ASC e MC contribuem com 0.5 cada
+    asc_el = SIGNO_ELEMENTO.get(asc_signo)
+    if asc_el:
+        soma[asc_el] += 0.5
+    mc_el = SIGNO_ELEMENTO.get(mc_signo)
+    if mc_el:
+        soma[mc_el] += 0.5
+
+    total = sum(soma.values())
+    if total == 0:
+        return None
+
+    resultado = {
+        "fogo": round(soma["Fogo"] / total * 100),
+        "terra": round(soma["Terra"] / total * 100),
+        "ar": round(soma["Ar"] / total * 100),
+        "agua": round(soma["Água"] / total * 100),
+    }
+    resultado["dominante"] = max(resultado, key=resultado.get)
+    return resultado
+
+
+def _calcular_qualidades(dados_planetas, asc_signo, mc_signo):
+    """Calcula distribuição percentual das 3 qualidades (Cardinal/Fixo/Mutável)."""
+    soma = {"Cardinal": 0, "Fixo": 0, "Mutável": 0}
+
+    for p in dados_planetas:
+        peso = PESOS_PLANETAS.get(p.get("planeta"), 0)
+        qualidade = SIGNO_QUALIDADE.get(p.get("signo"))
+        if peso and qualidade:
+            soma[qualidade] += peso
+
+    asc_q = SIGNO_QUALIDADE.get(asc_signo)
+    if asc_q:
+        soma[asc_q] += 0.5
+    mc_q = SIGNO_QUALIDADE.get(mc_signo)
+    if mc_q:
+        soma[mc_q] += 0.5
+
+    total = sum(soma.values())
+    if total == 0:
+        return None
+
+    resultado = {
+        "cardinal": round(soma["Cardinal"] / total * 100),
+        "fixo": round(soma["Fixo"] / total * 100),
+        "mutavel": round(soma["Mutável"] / total * 100),
+    }
+    resultado["dominante"] = max(resultado, key=resultado.get)
+    return resultado
+
+
+def _extrair_aspectos(chart_data):
+    """Extrai lista de aspectos do chart_data do Kerykeion."""
+    aspectos = []
+    try:
+        # Kerykeion v5: chart_data tem atributo 'aspects' ou 'natal_aspects'
+        raw_aspects = None
+        for attr in ("aspects", "natal_aspects", "aspects_list"):
+            raw_aspects = getattr(chart_data, attr, None)
+            if raw_aspects:
+                break
+
+        if not raw_aspects:
+            # Tentar via model_dump
+            try:
+                chart_dict = chart_data.model_dump() if hasattr(chart_data, 'model_dump') else {}
+                raw_aspects = chart_dict.get("aspects") or chart_dict.get("natal_aspects") or []
+            except Exception:
+                raw_aspects = []
+
+        for asp in raw_aspects:
+            if hasattr(asp, 'model_dump'):
+                asp = asp.model_dump()
+            elif not isinstance(asp, dict):
+                continue
+
+            # Kerykeion aspect fields: p1_name, p2_name, aspect, orbit, ...
+            p1 = asp.get("p1_name") or asp.get("planet1") or asp.get("p1", "")
+            p2 = asp.get("p2_name") or asp.get("planet2") or asp.get("p2", "")
+            tipo = asp.get("aspect") or asp.get("aspect_name") or asp.get("name", "")
+            orbe = asp.get("orbit") or asp.get("orb", 0)
+
+            if p1 and p2 and tipo:
+                aspectos.append({
+                    "planeta1": p1,
+                    "planeta2": p2,
+                    "aspecto": tipo,
+                    "orbe": round(float(orbe), 2) if orbe else 0
+                })
+    except Exception as e:
+        logger.warning(f"Erro ao extrair aspectos: {e}")
+
+    return aspectos
+
+
 def extrair_dados_tecnicos(sujeito, chart_data):
-    """Função auxiliar para limpar o código das rotas e extrair JSON"""
+    """
+    Extrai dados técnicos completos do mapa natal.
+    
+    Retorna:
+        planetas, casas, aspectos, elementos, qualidades,
+        ascendente_signo, mc_signo
+    """
     # Planetas
     lista_corpos = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", 
                     "Saturn", "Uranus", "Neptune", "Pluto", "Chiron", 
@@ -95,7 +232,26 @@ def extrair_dados_tecnicos(sujeito, chart_data):
                 "grau": f"{info.get('position'):.2f}"
             })
 
-    return {"planetas": dados_planetas, "casas": dados_casas}
+    # Campos nomeados: ASC (Casa 1) e MC (Casa 10)
+    asc_signo = dados_casas[0]["signo"] if len(dados_casas) >= 1 else None
+    mc_signo = dados_casas[9]["signo"] if len(dados_casas) >= 10 else None
+
+    # Aspectos
+    aspectos = _extrair_aspectos(chart_data)
+
+    # Elementos e Qualidades
+    elementos = _calcular_elementos(dados_planetas, asc_signo, mc_signo)
+    qualidades = _calcular_qualidades(dados_planetas, asc_signo, mc_signo)
+
+    return {
+        "planetas": dados_planetas,
+        "casas": dados_casas,
+        "aspectos": aspectos,
+        "elementos": elementos,
+        "qualidades": qualidades,
+        "ascendente_signo": asc_signo,
+        "mc_signo": mc_signo
+    }
 
 
 def gerar_mapa_svg(chart_data, pasta_imagens: str, nome_arquivo: str) -> str:
