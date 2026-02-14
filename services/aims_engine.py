@@ -293,11 +293,54 @@ class AIMSEngine:
             # Add planetary data
             planetas = mac_data.get("planetas", [])
             if isinstance(planetas, list):
+                # Mapping of raw planet names to clean variable names
+                PLANET_NAME_ALIASES = {
+                    "north node (true)": "north_node",
+                    "north node": "north_node",
+                    "north node (mean)": "north_node_mean",
+                    "south node (true)": "south_node",
+                    "south node": "south_node",
+                    "south node (mean)": "south_node_mean",
+                    "true node": "north_node",
+                    "mean node": "north_node_mean",
+                    "sun": "sun",
+                    "moon": "moon",
+                    "mercury": "mercury",
+                    "venus": "venus",
+                    "mars": "mars",
+                    "jupiter": "jupiter",
+                    "saturn": "saturn",
+                    "uranus": "uranus",
+                    "neptune": "neptune",
+                    "pluto": "pluto",
+                    "chiron": "chiron",
+                    "lilith": "lilith",
+                }
+                
                 for planeta in planetas:
                     planet_name = planeta.get("planeta", "").lower()
                     if planet_name:
-                        context["mac"][planet_name] = planeta.get("signo", "")
-                        context["mac"][f"{planet_name}_full"] = json.dumps(planeta, ensure_ascii=False)
+                        # Use clean alias if available, fallback to raw name
+                        clean_name = PLANET_NAME_ALIASES.get(planet_name, planet_name)
+                        context["mac"][clean_name] = planeta.get("signo", "")
+                        context["mac"][f"{clean_name}_full"] = json.dumps(planeta, ensure_ascii=False)
+                        # Also keep original raw name for backward compatibility
+                        if clean_name != planet_name:
+                            context["mac"][planet_name] = planeta.get("signo", "")
+                
+                # Derive South Node from North Node if not explicitly present
+                north_node_sign = context["mac"].get("north_node", "")
+                if north_node_sign and not context["mac"].get("south_node"):
+                    # South Node is always opposite sign of North Node
+                    OPPOSITE_SIGNS = {
+                        "Aries": "Libra", "Libra": "Aries",
+                        "Taurus": "Scorpio", "Scorpio": "Taurus",
+                        "Gemini": "Sagittarius", "Sagittarius": "Gemini",
+                        "Cancer": "Capricorn", "Capricorn": "Cancer",
+                        "Leo": "Aquarius", "Aquarius": "Leo",
+                        "Virgo": "Pisces", "Pisces": "Virgo"
+                    }
+                    context["mac"]["south_node"] = OPPOSITE_SIGNS.get(north_node_sign, "")
         
         return context
     
