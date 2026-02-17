@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from loguru import logger
+import json
 
 from services.llm_gateway import LLMGateway
 from services.supabase_client import get_supabase_client
@@ -385,19 +386,19 @@ async def generate_bio(request: GenerateBioRequest):
         profile_result = supabase.table("profiles") \
             .select("nome, nickname, sexo, profissao, estado_civil, tem_filhos, data_nascimento") \
             .eq("id", request.user_id) \
-            .maybeSingle() \
+            .limit(1) \
             .execute()
         
-        profile = profile_result.data or {}
+        profile = profile_result.data[0] if profile_result.data else {}
         
         # 2. Buscar MAC
         mac_result = supabase.table("mapas_astrais") \
             .select("sol_signo, lua_signo, ascendente_signo, mc_signo") \
             .eq("user_id", request.user_id) \
-            .maybeSingle() \
+            .limit(1) \
             .execute()
         
-        mac = mac_result.data or {}
+        mac = mac_result.data[0] if mac_result.data else {}
         
         # 3. Calcular idade
         idade_info = ""

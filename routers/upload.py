@@ -284,7 +284,8 @@ async def generate_cover_art(data: dict):
                     "prompt": prompt,
                     "n": 1,
                     "size": "1792x1024",
-                    "quality": "standard"
+                    "quality": "standard",
+                    "response_format": "b64_json"
                 }
             )
             dalle_elapsed = time.time() - dalle_start
@@ -297,20 +298,13 @@ async def generate_cover_art(data: dict):
                     detail=f"Erro na geração de imagem (HTTP {dalle_resp.status_code})"
                 )
             
-            image_url = dalle_resp.json()["data"][0]["url"]
-            logger.info(f"[CoverArt] ✅ Step 4: DALL-E gerou imagem em {dalle_elapsed:.1f}s — URL obtida")
+            b64_data = dalle_resp.json()["data"][0]["b64_json"]
+            logger.info(f"[CoverArt] ✅ Step 4: DALL-E gerou imagem em {dalle_elapsed:.1f}s — b64 recebido ({len(b64_data)} chars)")
         
-        # ── Step 5: Download da imagem gerada ──
-        download_start = time.time()
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            logger.info(f"[CoverArt] 🔄 Step 5: Baixando imagem do OpenAI...")
-            img_resp = await client.get(image_url)
-            if img_resp.status_code != 200:
-                logger.error(f"[CoverArt] ❌ Step 5: Download falhou — HTTP {img_resp.status_code}")
-                raise HTTPException(status_code=502, detail="Erro ao baixar imagem gerada")
-            image_bytes = img_resp.content
-            download_elapsed = time.time() - download_start
-            logger.info(f"[CoverArt] ✅ Step 5: Imagem baixada em {download_elapsed:.1f}s — {len(image_bytes)} bytes")
+        # ── Step 5: Decodificar imagem base64 ──
+        import base64
+        image_bytes = base64.b64decode(b64_data)
+        logger.info(f"[CoverArt] ✅ Step 5: Imagem decodificada — {len(image_bytes)} bytes")
         
         # ── Step 6: Upload para Bunny CDN ──
         bunny = get_bunny_storage()
