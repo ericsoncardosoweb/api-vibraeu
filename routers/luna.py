@@ -384,7 +384,7 @@ async def generate_bio(request: GenerateBioRequest):
         
         # 1. Buscar perfil do usuário (coluna real: 'name', não 'nome')
         profile_result = supabase.table("profiles") \
-            .select("name, nickname, data_nascimento") \
+            .select("name, nickname") \
             .eq("id", request.user_id) \
             .limit(1) \
             .execute()
@@ -410,25 +410,6 @@ async def generate_bio(request: GenerateBioRequest):
             .execute()
         
         mac = mac_result.data[0] if mac_result.data else {}
-        
-        # 3. Calcular idade
-        idade_info = ""
-        if profile.get("data_nascimento"):
-            from datetime import datetime
-            try:
-                nasc_str = str(profile["data_nascimento"])
-                nasc = datetime.strptime(nasc_str[:10], "%Y-%m-%d")
-                idade = (datetime.now() - nasc).days // 365
-                if idade < 25:
-                    idade_info = f"Pessoa jovem ({idade} anos) — use linguagem mais atual e energética."
-                elif idade < 35:
-                    idade_info = f"Adulto jovem ({idade} anos) — equilibre modernidade com maturidade."
-                elif idade < 50:
-                    idade_info = f"Adulto ({idade} anos) — use tom confiante e sofisticado."
-                else:
-                    idade_info = f"Pessoa madura ({idade} anos) — use tom sábio e elegante."
-            except Exception:
-                pass
         
         # 4. Montar contexto do perfil
         nome = profile.get("nickname") or (profile.get("name", "").split(" ")[0] if profile.get("name") else "")
@@ -467,8 +448,6 @@ CONTEXTO DO USUÁRIO:
 
 MAPA ASTRAL:
 {chr(10).join(f'- {c}' for c in ctx_astral) if ctx_astral else '- Sem dados astrológicos'}
-
-{idade_info}
 
 TOM DESEJADO: {TONS_BIO[tom]}
 
