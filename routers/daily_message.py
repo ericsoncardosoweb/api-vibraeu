@@ -1,11 +1,9 @@
 """
 Router: Daily Message (Mensagem do Dia)
 
-Gera mensagens inspiracionais diárias personalizadas usando IA.
-Migrado da Edge Function generate-daily-message para API Python nativa.
-
-Usa o astro_engine (Kerykeion) para dados astronômicos reais de lua e planetas,
-em vez de cálculos manuais aproximados.
+Gera mensagens inspiracionais diárias PROFUNDAMENTE personalizadas usando IA.
+Prompt v4.0 — Contexto astrológico rico, dados pessoais, cruzamentos,
+numerologia e distribuição inteligente de fontes.
 
 Endpoints:
 - POST /daily-message/generate — Gera ou retorna mensagem do dia
@@ -41,46 +39,98 @@ class RateRequest(BaseModel):
     rating: int
 
 # ============================================================================
-# CONSTANTES (migradas da Edge Function)
+# CONSTANTES v4.0
 # ============================================================================
 
-PROMPT_VERSION = "3.0"
-MAX_TOKENS = 500
+PROMPT_VERSION = "4.0"
+MAX_TOKENS = 700
 GROQ_MODEL = "llama-3.3-70b-versatile"
 OPENAI_MODEL = "gpt-4.1-mini"
 
 EXPRESSOES_BLOQUEADAS = [
     'meu bem', 'querida', 'querido', 'meu amor',
     'minha flor', 'benzinho', 'amor da minha vida',
-    'meu anjo', 'meu dengo'
+    'meu anjo', 'meu dengo', 'alma querida',
+    'meu caro', 'minha cara'
 ]
 
+# Fontes expandidas v4.0
 FONTES = [
     'dia_semana', 'fase_lua', 'ascendente', 'meio_ceu',
     'profissao_contexto', 'reflexao_existencial', 'estacao_clima',
-    'micro_momento', 'metafora_criativa', 'aniversario', 'feriado'
+    'micro_momento', 'metafora_criativa', 'aniversario', 'feriado',
+    'elemento_pessoal', 'cruzamento_lunar', 'numerologia_dia',
+    'planeta_regente_dia', 'casa_lua_natal', 'roda_da_vida',
+    'venus_e_afetos', 'marte_e_acao'
 ]
 
 TONS = [
-    {'id': 'sabio_sereno', 'nome': 'Sábio e Sereno', 'descricao': 'Contemplativo, metáforas naturais'},
-    {'id': 'energico_motivador', 'nome': 'Enérgico e Motivador', 'descricao': 'Direto, vibrante, ação'},
-    {'id': 'leve_humorado', 'nome': 'Leve e Bem-humorado', 'descricao': 'Coloquial, brincalhão'},
-    {'id': 'profundo_transformador', 'nome': 'Profundo e Transformador', 'descricao': 'Terapêutico, cura'},
-    {'id': 'afetuoso_acolhedor', 'nome': 'Afetuoso e Acolhedor', 'descricao': 'Carinhoso, autocuidado'},
-    {'id': 'provocativo_instigante', 'nome': 'Provocativo e Instigante', 'descricao': 'Perguntas, desafia'}
+    {'id': 'sabio_sereno', 'nome': 'Sábio e Sereno', 'descricao': 'Contemplativo, metáforas naturais, poético'},
+    {'id': 'energico_motivador', 'nome': 'Enérgico e Motivador', 'descricao': 'Direto, vibrante, ação, foco'},
+    {'id': 'leve_humorado', 'nome': 'Leve e Bem-humorado', 'descricao': 'Coloquial, brincalhão, leve'},
+    {'id': 'profundo_transformador', 'nome': 'Profundo e Transformador', 'descricao': 'Terapêutico, cura, camadas'},
+    {'id': 'afetuoso_acolhedor', 'nome': 'Afetuoso e Acolhedor', 'descricao': 'Carinhoso, autocuidado, colo'},
+    {'id': 'provocativo_instigante', 'nome': 'Provocativo e Instigante', 'descricao': 'Perguntas, desafia, incomoda com amor'},
+    {'id': 'estrategista_pratico', 'nome': 'Estrategista Prático', 'descricao': 'Objetivo, pragmático, ferramentas mentais'},
+    {'id': 'mistico_intuitivo', 'nome': 'Místico e Intuitivo', 'descricao': 'Etéreo, simbólico, espiritual sem ser religioso'}
 ]
 
 DIAS_SEMANA = [
-    {'nome': 'Segunda', 'planeta': 'Lua', 'energia': 'emoções, intuição, recomeço'},
-    {'nome': 'Terça', 'planeta': 'Marte', 'energia': 'ação, coragem, iniciativa'},
-    {'nome': 'Quarta', 'planeta': 'Mercúrio', 'energia': 'comunicação, negócios, ideias'},
-    {'nome': 'Quinta', 'planeta': 'Júpiter', 'energia': 'expansão, abundância, visão'},
-    {'nome': 'Sexta', 'planeta': 'Vênus', 'energia': 'amor, beleza, conexões'},
-    {'nome': 'Sábado', 'planeta': 'Saturno', 'energia': 'estrutura, responsabilidade, foco'},
-    {'nome': 'Domingo', 'planeta': 'Sol', 'energia': 'vitalidade, criatividade, descanso'},
+    {'nome': 'Segunda', 'planeta': 'Lua', 'energia': 'emoções, intuição, recomeço semanal, acolhimento interno'},
+    {'nome': 'Terça', 'planeta': 'Marte', 'energia': 'ação, coragem, iniciativa, força para enfrentar'},
+    {'nome': 'Quarta', 'planeta': 'Mercúrio', 'energia': 'comunicação, negócios, ideias, aprendizado'},
+    {'nome': 'Quinta', 'planeta': 'Júpiter', 'energia': 'expansão, abundância, visão ampla, fé'},
+    {'nome': 'Sexta', 'planeta': 'Vênus', 'energia': 'amor, beleza, conexões, prazer, descanso merecido'},
+    {'nome': 'Sábado', 'planeta': 'Saturno', 'energia': 'estrutura, responsabilidade, foco, organização'},
+    {'nome': 'Domingo', 'planeta': 'Sol', 'energia': 'vitalidade, criatividade, descanso, recarregar'},
 ]
 
-SYSTEM_PROMPT = "Você é um mentor inspiracional que gera mensagens diárias personalizadas. Responda APENAS com JSON válido."
+# Mapeamento de signos para elementos
+ELEMENTOS_POR_SIGNO = {
+    'Áries': 'Fogo', 'Touro': 'Terra', 'Gêmeos': 'Ar', 'Câncer': 'Água',
+    'Leão': 'Fogo', 'Virgem': 'Terra', 'Libra': 'Ar', 'Escorpião': 'Água',
+    'Sagitário': 'Fogo', 'Capricórnio': 'Terra', 'Aquário': 'Ar', 'Peixes': 'Água'
+}
+
+# Palavras-chave por elemento
+ENERGIA_ELEMENTOS = {
+    'Fogo': 'ação, paixão, impulso, entusiasmo, liderança',
+    'Terra': 'estabilidade, construção, praticidade, segurança, materialização',
+    'Ar': 'ideias, comunicação, conexão, versatilidade, leveza',
+    'Água': 'emoção, intuição, profundidade, sensibilidade, empatia'
+}
+
+# Compatibilidade entre elementos
+HARMONIA_ELEMENTOS = {
+    ('Fogo', 'Fogo'): 'harmonia total — intensidade amplificada',
+    ('Fogo', 'Ar'): 'harmonia — o Ar aviva o Fogo',
+    ('Fogo', 'Terra'): 'tensão criativa — Fogo quer voar, Terra quer construir',
+    ('Fogo', 'Água'): 'tensão — Água pode apagar o Fogo, mas também gera vapor criativo',
+    ('Terra', 'Terra'): 'harmonia total — fundação sólida',
+    ('Terra', 'Água'): 'harmonia — Água nutre a Terra',
+    ('Terra', 'Ar'): 'tensão — Terra quer raiz, Ar quer liberdade',
+    ('Ar', 'Ar'): 'harmonia total — fluxo de ideias',
+    ('Ar', 'Água'): 'tensão — lógica vs emoção, mas juntas criam compreensão',
+    ('Água', 'Água'): 'harmonia total — profundidade emocional amplificada',
+}
+
+# Numerologia — significados dos números
+NUMEROLOGIA_SIGNIFICADOS = {
+    1: {'tema': 'Início', 'energia': 'liderança, independência, novo começo, plantar sementes'},
+    2: {'tema': 'Parceria', 'energia': 'cooperação, diplomacia, equilíbrio, escutar o outro'},
+    3: {'tema': 'Expressão', 'energia': 'criatividade, comunicação, alegria, socializar'},
+    4: {'tema': 'Estrutura', 'energia': 'disciplina, organização, bases sólidas, paciência'},
+    5: {'tema': 'Liberdade', 'energia': 'mudança, aventura, adaptabilidade, sair da zona de conforto'},
+    6: {'tema': 'Responsabilidade', 'energia': 'família, harmonia, cuidado, lar, amor'},
+    7: {'tema': 'Introspecção', 'energia': 'espiritualidade, análise, descanso mental, sabedoria'},
+    8: {'tema': 'Poder', 'energia': 'abundância, conquistas materiais, autoridade, ambição'},
+    9: {'tema': 'Conclusão', 'energia': 'encerramento de ciclos, compaixão, desapego, humanidade'},
+}
+
+SYSTEM_PROMPT = """Você é um mentor de autoconhecimento e astrologia que gera mensagens diárias personalizadas para o app Vibra EU.
+Você conhece profundamente a pessoa e fala diretamente para ela, como um guia sábio e próximo.
+Responda APENAS com JSON válido, sem markdown ou texto adicional."""
+
 
 # ============================================================================
 # DADOS ASTRONÔMICOS (via astro_engine / Kerykeion)
@@ -89,25 +139,22 @@ SYSTEM_PROMPT = "Você é um mentor inspiracional que gera mensagens diárias pe
 def _obter_dados_astronomicos() -> Dict[str, Any]:
     """
     Usa o astro_engine (Kerykeion) para obter dados astronômicos reais.
-    Mesmo método usado pelo endpoint /hoje.
+    Sempre usa horário de São Paulo como referência.
     """
     try:
         fuso = pytz.timezone("America/Sao_Paulo")
         agora = datetime.now(fuso)
 
-        # Criar sujeito para o momento atual (São Paulo como referência)
         sujeito = gerar_sujeito_final(
             "CeuHoje",
             agora.year, agora.month, agora.day, agora.hour, agora.minute,
-            -23.5505, -46.6333,  # São Paulo coords
+            -23.5505, -46.6333,
             "São Paulo", "BR"
         )
 
-        # Calcular fase lunar via Kerykeion (posições reais Sol/Lua)
         fase_lua = calcular_fase_lunar(sujeito)
 
         if fase_lua:
-            # Determinar fase simplificada para a lógica de transição
             fase_nome = fase_lua.get('nome', '').lower()
             if 'nova' in fase_nome:
                 fase_simpl = 'nova'
@@ -118,7 +165,7 @@ def _obter_dados_astronomicos() -> Dict[str, Any]:
             else:
                 fase_simpl = 'minguante'
 
-            # Calcular ontem para detectar transição
+            # Detectar transição
             ontem = agora - timedelta(days=1)
             try:
                 sujeito_ontem = gerar_sujeito_final(
@@ -141,7 +188,6 @@ def _obter_dados_astronomicos() -> Dict[str, Any]:
             except Exception:
                 is_transicao = False
 
-            # Extrair iluminação (vem como "85%")
             ilum_str = fase_lua.get('iluminacao_aprox', '50%')
             iluminacao = int(ilum_str.replace('%', '')) if isinstance(ilum_str, str) else 50
 
@@ -159,7 +205,6 @@ def _obter_dados_astronomicos() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"[MensagemDia] Erro ao calcular dados astronômicos via Kerykeion: {e}")
 
-    # Fallback mínimo se Kerykeion falhar
     return {
         'fase': 'Crescente',
         'faseSimplificada': 'crescente',
@@ -173,7 +218,7 @@ def _obter_dados_astronomicos() -> Dict[str, Any]:
 
 
 # ============================================================================
-# UTILITÁRIOS
+# FUNÇÕES AUXILIARES v4.0
 # ============================================================================
 
 def _get_dia_semana(dt: datetime) -> Dict[str, str]:
@@ -188,6 +233,93 @@ def _is_aniversario(data_nascimento: Optional[str], data_atual: datetime) -> boo
         return nasc.day == data_atual.day and nasc.month == data_atual.month
     except Exception:
         return False
+
+
+def _obter_elemento(signo: Optional[str]) -> Optional[str]:
+    """Retorna o elemento de um signo (Fogo/Terra/Ar/Água)."""
+    if not signo or signo == 'não informado':
+        return None
+    return ELEMENTOS_POR_SIGNO.get(signo)
+
+
+def _calcular_numerologia_dia(data: datetime) -> Dict[str, Any]:
+    """Calcula o número pessoal do dia pela soma reduzida da data."""
+    date_str = data.strftime("%Y%m%d")
+    soma = sum(int(d) for d in date_str)
+    while soma > 9:
+        soma = sum(int(d) for d in str(soma))
+    info = NUMEROLOGIA_SIGNIFICADOS.get(soma, {'tema': 'Fluxo', 'energia': 'estar presente'})
+    return {
+        'numero': soma,
+        'tema': info['tema'],
+        'energia': info['energia']
+    }
+
+
+def _cruzamento_lua_dia_natal(lua_dia_signo: str, lua_natal_signo: Optional[str]) -> Optional[str]:
+    """Gera insight do cruzamento entre a lua do dia e a lua natal da pessoa."""
+    if not lua_natal_signo or lua_natal_signo == 'não informado':
+        return None
+
+    elem_dia = ELEMENTOS_POR_SIGNO.get(lua_dia_signo)
+    elem_natal = ELEMENTOS_POR_SIGNO.get(lua_natal_signo)
+
+    if not elem_dia or not elem_natal:
+        return None
+
+    if lua_dia_signo == lua_natal_signo:
+        return f"Hoje a Lua transita pelo mesmo signo da sua Lua natal ({lua_natal_signo}) — dia de sintonia emocional profunda, seus sentimentos estão amplificados."
+
+    # Buscar harmonia (normalizar a tupla para ambas as ordens)
+    chave = tuple(sorted([elem_dia, elem_natal]))
+    harmonia = HARMONIA_ELEMENTOS.get(chave, 'interação neutra')
+
+    if elem_dia == elem_natal:
+        return f"A Lua em {lua_dia_signo} ({elem_dia}) harmoniza com sua Lua em {lua_natal_signo} ({elem_natal}) — {harmonia}."
+
+    return f"A Lua hoje em {lua_dia_signo} ({elem_dia}) faz um diálogo com sua Lua em {lua_natal_signo} ({elem_natal}) — {harmonia}."
+
+
+def _obter_resumo_roda_vida(sb, user_id: str) -> Optional[Dict[str, Any]]:
+    """Busca a Roda da Vida mais recente e retorna as 2 áreas mais fortes e 2 mais fracas."""
+    try:
+        areas_campos = [
+            'saude_fisica', 'saude_mental', 'financas', 'carreira',
+            'relacionamentos', 'familia', 'espiritualidade', 'lazer',
+            'crescimento_pessoal', 'contribuicao', 'ambiente', 'proposito'
+        ]
+        resp = sb.client.table('roda_vida') \
+            .select(', '.join(areas_campos)) \
+            .eq('user_id', user_id) \
+            .order('created_at', desc=True) \
+            .limit(1) \
+            .execute()
+
+        if not resp.data:
+            return None
+
+        roda = resp.data[0]
+        notas = {}
+        for campo in areas_campos:
+            val = roda.get(campo)
+            if val is not None:
+                label = campo.replace('_', ' ').title()
+                notas[label] = val
+
+        if len(notas) < 4:
+            return None
+
+        ordenado = sorted(notas.items(), key=lambda x: x[1])
+        mais_fracas = ordenado[:2]
+        mais_fortes = ordenado[-2:]
+
+        return {
+            'mais_fortes': [{'area': a, 'nota': n} for a, n in mais_fortes],
+            'mais_fracas': [{'area': a, 'nota': n} for a, n in mais_fracas],
+        }
+    except Exception as e:
+        logger.warning(f"[MensagemDia] Erro ao buscar Roda da Vida: {e}")
+        return None
 
 
 # ============================================================================
@@ -226,7 +358,7 @@ def _selecionar_tom() -> Dict[str, str]:
 
 
 # ============================================================================
-# PROMPT v3.0
+# PROMPT v4.0 — PROFUNDAMENTE PERSONALIZADO
 # ============================================================================
 
 def _montar_prompt(
@@ -235,7 +367,10 @@ def _montar_prompt(
     fonte: str,
     tom: Dict[str, str],
     data_atual: datetime,
-    tipo: str  # 'personalizada' | 'generica'
+    tipo: str,  # 'personalizada' | 'generica'
+    numerologia: Dict[str, Any],
+    cruzamento_lunar: Optional[str],
+    roda_vida: Optional[Dict[str, Any]]
 ) -> str:
     dia_semana = _get_dia_semana(data_atual)
 
@@ -245,32 +380,117 @@ def _montar_prompt(
             'sexta-feira', 'sábado', 'domingo']
     data_formatada = f"{dias[data_atual.weekday()]}, {data_atual.day} de {meses[data_atual.month - 1]} de {data_atual.year}"
 
+    nome = contexto.get('nome', 'Você')
+
+    # ===== BLOCO DE CONTEXTO PESSOAL =====
     if tipo == 'personalizada':
+        elem_solar = contexto.get('elementoSolar') or _obter_elemento(contexto.get('signoSolar'))
+        energia_elem = ENERGIA_ELEMENTOS.get(elem_solar, '') if elem_solar else ''
+
+        # Dados pessoais de vida
+        dados_vida = []
+        if contexto.get('estadoCivil'):
+            dados_vida.append(f"- Estado civil: {contexto['estadoCivil']}")
+        if contexto.get('temFilhos'):
+            val = contexto['temFilhos']
+            dados_vida.append(f"- Tem filhos: {'Sim' if val in ['sim', 'Sim', True, 'true'] else 'Não'}")
+        dados_vida_str = '\n'.join(dados_vida) if dados_vida else ''
+
+        # Planetas pessoais
+        planetas = []
+        if contexto.get('venusSigno') and contexto['venusSigno'] != 'não informado':
+            planetas.append(f"- Vênus (amor/valores): {contexto['venusSigno']}")
+        if contexto.get('marteSigno') and contexto['marteSigno'] != 'não informado':
+            planetas.append(f"- Marte (ação/energia): {contexto['marteSigno']}")
+        if contexto.get('mercurioSigno') and contexto['mercurioSigno'] != 'não informado':
+            planetas.append(f"- Mercúrio (mente/comunicação): {contexto['mercurioSigno']}")
+        planetas_str = '\n'.join(planetas) if planetas else ''
+
         contexto_bloco = f"""
-### Contexto do Usuário
-- Nome: {contexto.get('nome', 'Você')}
-- Signo Solar: {contexto.get('signoSolar', 'não informado')}
-- Signo Lunar: {contexto.get('signoLunar', 'não informado')}
-- Ascendente: {contexto.get('ascendente', 'não informado')}
-- Meio do Céu: {contexto.get('meioCeu', 'não informado')}
+### Contexto Pessoal de {nome}
+- Nome: {nome}
 - Idade: {contexto.get('idade', 'não informada')}
 - Sexo: {contexto.get('sexo', 'não informado')}
 - Profissão: {contexto.get('profissao', 'não informada')}
+{dados_vida_str}
+
+### Mapa Astral (MAC)
+- ☀️ Sol: {contexto.get('signoSolar', 'não informado')} — Elemento {elem_solar or 'não informado'} ({energia_elem})
+- 🌙 Lua: {contexto.get('signoLunar', 'não informado')}
+- ⬆️ Ascendente: {contexto.get('ascendente', 'não informado')}
+- 🏔️ Meio do Céu: {contexto.get('meioCeu', 'não informado')}
+{planetas_str}
 """
     else:
         contexto_bloco = """
 ### Contexto Genérico
-Mensagem para público geral, sem personalização.
-Use linguagem neutra e universal.
+Mensagem para público geral sem dados astrológicos pessoais.
+Foque na energia do dia, da lua e no contexto temporal.
 """
 
-    lua_regra = ''
-    if not lua.get('isTransicao'):
-        lua_regra = '\n⚠️ REGRA CRÍTICA: NÃO mencione a lua na mensagem! Só mencione quando há transição de fase.'
+    # ===== BLOCO DE LUA =====
+    lua_bloco = f"""## 🌙 LUA DO DIA
+- Fase: {lua['fase']} ({lua['faseSimplificada']})
+- Signo da Lua hoje: {lua['signo']}
+- Iluminação: {lua['iluminacao']}%
+- É transição de fase: {'SIM ✅ — DESTAQUE ESPECIAL! A lua mudou de fase, isso é significativo!' if lua.get('isTransicao') else 'Não'}
+"""
+
+    # ===== CRUZAMENTO LUNAR =====
+    cruzamento_bloco = ''
+    if cruzamento_lunar:
+        cruzamento_bloco = f"""
+## 🔮 CRUZAMENTO LUNAR (Lua do dia × Lua natal)
+{cruzamento_lunar}
+→ USE este cruzamento para personalizar a mensagem. É um dado poderoso.
+"""
+
+    # ===== NUMEROLOGIA =====
+    numero_bloco = f"""## 🔢 NUMEROLOGIA DO DIA: {numerologia['numero']}
+- Tema: {numerologia['tema']}
+- Energia: {numerologia['energia']}
+"""
+
+    # ===== RODA DA VIDA =====
+    roda_bloco = ''
+    if roda_vida:
+        fortes = ', '.join(f"{a['area']} ({a['nota']})" for a in roda_vida['mais_fortes'])
+        fracas = ', '.join(f"{a['area']} ({a['nota']})" for a in roda_vida['mais_fracas'])
+        roda_bloco = f"""
+## 🎯 RODA DA VIDA (autoavaliação recente)
+- Áreas mais fortes: {fortes}
+- Áreas pedindo atenção: {fracas}
+→ Quando a fonte for 'roda_da_vida', use isso como gancho principal.
+"""
+
+    # ===== INSTRUÇÕES POR FONTE =====
+    instrucoes_fonte = {
+        'dia_semana': f"Foque na energia de {dia_semana['nome']} regida por {dia_semana['planeta']}: {dia_semana['energia']}.",
+        'fase_lua': f"A lua está {lua['fase']} em {lua['signo']}. Explore o significado dessa fase e como ela influencia o dia.",
+        'ascendente': f"O ascendente de {nome} revela como ela se apresenta ao mundo. Use isso.",
+        'meio_ceu': f"O Meio do Céu revela a vocação e propósito profissional de {nome}. Conecte com o dia.",
+        'profissao_contexto': f"Considere a profissão de {nome} ({contexto.get('profissao', 'não informada')}) como contexto.",
+        'reflexao_existencial': "Faça uma reflexão profunda sobre a vida, o momento, os ciclos.",
+        'estacao_clima': f"Estamos em fevereiro no hemisfério sul — verão, calor, energia expansiva.",
+        'micro_momento': "Traga um micro-momento do cotidiano como metáfora (café da manhã, espelho, primeiro passo).",
+        'metafora_criativa': "Use uma metáfora criativa e original como fio condutor da mensagem.",
+        'aniversario': f"Hoje é aniversário de {nome}! Celebre de forma especial e significativa.",
+        'feriado': "Se hoje for feriado ou data especial, conecte com a mensagem.",
+        'elemento_pessoal': f"Explore o elemento {contexto.get('elementoSolar', '')} de {nome} e como ele interage com o dia.",
+        'cruzamento_lunar': "Use o cruzamento entre a lua do dia e a lua natal como base principal.",
+        'numerologia_dia': f"O número do dia é {numerologia['numero']} — tema '{numerologia['tema']}'. Use como fio condutor.",
+        'planeta_regente_dia': f"{dia_semana['nome']} é regida por {dia_semana['planeta']}. Aprofunde a relação com o mapa da pessoa.",
+        'casa_lua_natal': "Explore a casa onde a lua natal está posicionada e o que isso significa no cotidiano.",
+        'roda_da_vida': "Use as áreas da Roda da Vida da pessoa como gancho principal da mensagem.",
+        'venus_e_afetos': f"Explore Vênus ({contexto.get('venusSigno', 'não informado')}) — amor próprio, valores, relações.",
+        'marte_e_acao': f"Explore Marte ({contexto.get('marteSigno', 'não informado')}) — ação, coragem, energia vital.",
+    }
+
+    instrucao_fonte = instrucoes_fonte.get(fonte, 'Use abordagem criativa e variada.')
 
     expressoes = '\n'.join(f'- "{e}"' for e in EXPRESSOES_BLOQUEADAS)
-    nome = contexto.get('nome', 'Você')
 
+    # ===== PROMPT FINAL =====
     prompt = f"""# GERADOR DE MENSAGEM INSPIRACIONAL v{PROMPT_VERSION}
 
 ## MODO: {tipo.upper()}
@@ -278,29 +498,48 @@ Use linguagem neutra e universal.
 
 ## DATA E CONTEXTO TEMPORAL
 - Data: {data_formatada}
-- Dia da Semana: {dia_semana['nome']} (Planeta: {dia_semana['planeta']}, Energia: {dia_semana['energia']})
+- Dia da Semana: {dia_semana['nome']} (Planeta regente: {dia_semana['planeta']})
+- Energia do dia: {dia_semana['energia']}
 
-## LUA DO DIA
-- Fase: {lua['fase']} ({lua['faseSimplificada']})
-- Signo: {lua['signo']}
-- Iluminação: {lua['iluminacao']}%
-- Transição de fase hoje: {'SIM ✅' if lua.get('isTransicao') else 'NÃO ❌'}{lua_regra}
+{lua_bloco}
+{cruzamento_bloco}
+{numero_bloco}
+{roda_bloco}
 
-## FONTE DE INSPIRAÇÃO SELECIONADA: {fonte.upper().replace('_', ' ')}
-Use esta fonte como base principal da mensagem.
+## 🎯 FONTE DE INSPIRAÇÃO: {fonte.upper().replace('_', ' ')}
+{instrucao_fonte}
 
-## TOM SELECIONADO: {tom['nome'].upper()}
+## 🎭 TOM: {tom['nome'].upper()}
 Ajuste a linguagem e abordagem de acordo com este tom.
 
-## REGRAS OBRIGATÓRIAS
+## ⚡ REGRAS OBRIGATÓRIAS v4.0
 
-### ❌ NUNCA USE estas expressões (soam artificiais vindo de IA):
+### ❌ NUNCA faça:
 {expressoes}
+- NUNCA comece a mensagem com "Você, hoje, ..." — VARIE a abertura!
+- NUNCA comece com "{nome}, hoje..." em TODAS as mensagens — varie!
+- NUNCA use estrutura repetitiva
 
-### ✅ ABORDAGEM CORRETA:
-- Use o nome da pessoa diretamente: "{nome}, hoje..."
-- Tom respeitoso mas próximo, como um mentor/amigo sábio
-- Evite excesso de carinho forçado
+### ✅ COMO ESCREVER:
+- Fale diretamente para {nome}, como alguém que a conhece profundamente
+- Varie SEMPRE a abertura. Exemplos de aberturas variadas:
+  • Comece com uma pergunta reflexiva
+  • Comece com a energia do dia/lua
+  • Comece com uma metáfora
+  • Comece com um insight astrológico
+  • Comece com o nome + algo inesperado
+  • Comece pela numerologia ou pela fase da lua
+- A pessoa deve sentir que a mensagem foi escrita PARA ELA
+- Ajude-a a se PREPARAR para o dia, com insights práticos e emocionais
+- Integre os elementos astrológicos de forma natural (não como lista de dados)
+- Seja um guia sábio que conhece os astros E conhece a pessoa
+
+### 🔮 OBRIGATÓRIO — INTEGRE PELO MENOS 2 DESTES:
+1. A fase/signo da lua do dia
+2. Um elemento do mapa astral da pessoa (Sol, Lua, ASC, planetas)
+3. A energia do dia da semana / planeta regente
+4. A numerologia do dia
+5. Um aspecto pessoal (profissão, estado civil, filhos, idade)
 
 ## OUTPUT
 Responda APENAS com JSON válido, sem texto adicional:
@@ -311,13 +550,15 @@ Responda APENAS com JSON válido, sem texto adicional:
 
 Regras do HTML:
 - Use <p>, <br>, <strong>, <em>
-- Máximo 2 parágrafos curtos (4-8 linhas total)
-- 1-2 emojis estratégicos
+- 2-3 parágrafos (6-10 linhas total) — pode ser mais rico que antes
+- 1-2 emojis estratégicos e contextuais (lua, estrela, fogo, etc)
+- O último parágrafo deve ter uma orientação prática ou reflexão de encerramento
 
-Regras da Frase:
-- Máximo 2 linhas
-- Sem emojis
-- Pode usar <strong> ou <em>"""
+Regras da Frase (exibida como destaque visual na tela):
+- Frase curta e impactante (1-2 linhas)
+- Sem emojis na frase
+- Pode usar <strong> ou <em>
+- Deve funcionar como um "mantra do dia" ou insight memorável"""
 
     return prompt
 
@@ -339,7 +580,10 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
     """
     settings = get_settings()
     sb = SupabaseService()
-    data_atual = datetime.utcnow()
+    
+    # CORREÇÃO CRÍTICA: usar timezone de São Paulo, não UTC
+    fuso_sp = pytz.timezone("America/Sao_Paulo")
+    data_atual = datetime.now(fuso_sp)
     data_referencia = data_atual.strftime("%Y-%m-%d")
 
     # ===== CONTEXTO DO USUÁRIO =====
@@ -365,7 +609,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                 is_pago = plan_name.lower() in ['fluxo', 'expansao']
                 tipo = 'personalizada' if is_pago else 'generica'
 
-                # Buscar MAC
+                # Buscar MAC com TODOS os campos relevantes
                 mac_resp = sb.client.table('mapas_astrais') \
                     .select('*') \
                     .eq('user_id', user_id) \
@@ -385,12 +629,21 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                     except Exception:
                         pass
 
+                # Extrair signo solar — tentar múltiplos campos
+                signo_solar = mac.get('sol_signo') or mac.get('signo_solar') or 'não informado'
+
                 contexto = {
                     'nome': profile.get('nickname') or (profile.get('name', '').split(' ')[0] if profile.get('name') else 'Você'),
-                    'signoSolar': mac.get('sol_signo') or mac.get('signo_solar') or 'não informado',
+                    'signoSolar': signo_solar,
                     'signoLunar': mac.get('lua_signo') or mac.get('signo_lunar'),
                     'ascendente': mac.get('ascendente') or mac.get('ascendente_signo'),
                     'meioCeu': mac.get('meio_ceu') or mac.get('mc_signo'),
+                    'elementoSolar': mac.get('elemento_dominante') or _obter_elemento(signo_solar),
+                    'venusSigno': mac.get('venus_signo'),
+                    'marteSigno': mac.get('marte_signo'),
+                    'mercurioSigno': mac.get('mercurio_signo'),
+                    'estadoCivil': profile.get('estado_civil'),
+                    'temFilhos': profile.get('tem_filhos'),
                     'dataNascimento': data_nasc,
                     'sexo': profile.get('sexo'),
                     'idade': idade,
@@ -407,13 +660,12 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                 .select('*') \
                 .eq('user_id', user_id) \
                 .eq('data_referencia', data_referencia) \
-                .gt('expires_at', datetime.utcnow().isoformat()) \
+                .gt('expires_at', datetime.now(pytz.utc).isoformat()) \
                 .execute()
 
             existentes = existing_resp.data or []
             if existentes:
                 existente = existentes[0]
-                # Incrementar visualizações
                 try:
                     sb.client.table('mensagens_do_dia') \
                         .update({'visualizacoes': (existente.get('visualizacoes', 0) or 0) + 1}) \
@@ -453,8 +705,19 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         except Exception as e:
             logger.warning(f"[MensagemDia] Erro ao verificar regeneração: {e}")
 
-    # ===== OBTER DADOS ASTRONÔMICOS (via Kerykeion / astro_engine) =====
+    # ===== DADOS ASTRONÔMICOS (via Kerykeion) =====
     lua = _obter_dados_astronomicos()
+
+    # ===== DADOS ENRIQUECIDOS v4.0 =====
+    numerologia = _calcular_numerologia_dia(data_atual)
+    cruzamento_lunar = _cruzamento_lua_dia_natal(
+        lua.get('signo', ''),
+        contexto.get('signoLunar')
+    ) if tipo == 'personalizada' else None
+
+    roda_vida = None
+    if tipo == 'personalizada' and user_id:
+        roda_vida = _obter_resumo_roda_vida(sb, user_id)
 
     # Buscar pesos do banco
     pesos_data = None
@@ -469,18 +732,16 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
 
     fonte = _selecionar_fonte(pesos_data, lua, contexto.get('dataNascimento'), data_atual)
     tom = _selecionar_tom()
-    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo)
+    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, numerologia, cruzamento_lunar, roda_vida)
 
     # ===== CHAMAR LLM COM REGRA POR PLANO =====
-    # Free/Trial/Semente → Groq primário, OpenAI fallback
-    # Fluxo/Expansão (pagos) → OpenAI primário, Groq fallback
     if is_pago:
         llm_config = {
             "provider": "openai",
             "model": OPENAI_MODEL,
             "fallback_provider": "groq",
             "fallback_model": GROQ_MODEL,
-            "temperature": 0.8,
+            "temperature": 0.85,
             "max_tokens": MAX_TOKENS
         }
         modelo_usado = OPENAI_MODEL
@@ -490,15 +751,15 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
             "model": GROQ_MODEL,
             "fallback_provider": "openai",
             "fallback_model": OPENAI_MODEL,
-            "temperature": 0.8,
+            "temperature": 0.85,
             "max_tokens": MAX_TOKENS
         }
         modelo_usado = GROQ_MODEL
 
-    logger.info(f"[MensagemDia] Gerando para user={user_id}, tipo={tipo}, provider={llm_config['provider']}")
+    logger.info(f"[MensagemDia v4.0] Gerando para user={user_id}, tipo={tipo}, fonte={fonte}, tom={tom['id']}, provider={llm_config['provider']}")
 
     gateway = LLMGateway.get_instance()
-    start_time = datetime.utcnow()
+    start_time = datetime.now(pytz.utc)
 
     raw_content = await gateway.generate(
         prompt=prompt,
@@ -506,7 +767,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         system_prompt=SYSTEM_PROMPT
     )
 
-    tempo_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+    tempo_ms = int((datetime.now(pytz.utc) - start_time).total_seconds() * 1000)
 
     # Parse JSON do LLM
     try:
@@ -544,7 +805,12 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                 'lua': lua['faseSimplificada'],
                 'luaSigno': lua['signo'],
                 'isTransicao': lua['isTransicao'],
-                'diaSemana': _get_dia_semana(data_atual)['nome']
+                'diaSemana': _get_dia_semana(data_atual)['nome'],
+                'numerologia': numerologia['numero'],
+                'fonte': fonte,
+                'tom': tom['id'],
+                'cruzamentoLunar': cruzamento_lunar is not None,
+                'rodaVida': roda_vida is not None
             },
             'modelo_ia': modelo_usado,
             'tokens_usados': 0,
@@ -561,7 +827,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         if save_resp.data:
             saved_id = save_resp.data[0].get('id')
 
-        logger.info(f"[MensagemDia] ✓ Salva com sucesso para user={user_id}")
+        logger.info(f"[MensagemDia v4.0] ✓ Salva com sucesso para user={user_id} (fonte={fonte}, tom={tom['id']})")
     except Exception as e:
         logger.error(f"[MensagemDia] Erro ao salvar: {e}")
 
@@ -583,7 +849,11 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
             'modelo': modelo_usado,
             'tempoMs': tempo_ms,
             'plano': contexto.get('plano', 'trial'),
-            'provider': llm_config['provider']
+            'provider': llm_config['provider'],
+            'promptVersion': PROMPT_VERSION,
+            'fonte': fonte,
+            'tom': tom['id'],
+            'numerologia': numerologia['numero']
         }
     }
 

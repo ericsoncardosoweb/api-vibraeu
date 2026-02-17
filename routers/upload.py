@@ -202,6 +202,7 @@ async def generate_cover_art(data: dict):
     Usa DALL-E 3 para gerar a imagem e faz upload para Bunny CDN.
     """
     import httpx
+    import time
     from datetime import datetime
     from config import get_settings
     from services.supabase_client import get_supabase_client
@@ -210,17 +211,24 @@ async def generate_cover_art(data: dict):
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id is required")
     
+    logger.info(f"[CoverArt] 🎨 INÍCIO — user={user_id}")
+    start_time = time.time()
+    
     try:
         uuid.UUID(user_id)
     except ValueError:
+        logger.error(f"[CoverArt] ❌ user_id inválido: {user_id}")
         raise HTTPException(status_code=400, detail="Invalid user_id format")
     
     settings = get_settings()
     
     if not settings.openai_api_key:
+        logger.error("[CoverArt] ❌ OPENAI_API_KEY não configurada")
         raise HTTPException(status_code=503, detail="OpenAI API key not configured")
     
-    # Buscar mapa astral do usuário via Supabase client
+    logger.info(f"[CoverArt] ✅ Step 1: API Key presente (***{settings.openai_api_key[-4:]})")
+    
+    # ── Step 2: Buscar mapa astral ──
     try:
         supabase = get_supabase_client()
         result = supabase.table("mapas_astrais") \
@@ -229,6 +237,7 @@ async def generate_cover_art(data: dict):
             .execute()
         
         if not result.data or len(result.data) == 0:
+            logger.error(f"[CoverArt] ❌ Step 2: Mapa astral não encontrado para user={user_id}")
             raise HTTPException(status_code=404, detail="Mapa astral não encontrado. Gere seu MAC primeiro.")
         
         mapa = result.data[0]
@@ -237,13 +246,15 @@ async def generate_cover_art(data: dict):
         asc = mapa.get("ascendente_signo", "Leo")
         mc = mapa.get("mc_signo", "Capricorn")
         
+        logger.info(f"[CoverArt] ✅ Step 2: MAC encontrado — Sol:{sol}, Lua:{lua}, Asc:{asc}, MC:{mc}")
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching mapa astral: {e}")
+        logger.error(f"[CoverArt] ❌ Step 2: Erro Supabase: {e}")
         raise HTTPException(status_code=500, detail="Erro ao buscar mapa astral")
     
-    # Gerar prompt artístico
+    # ── Step 3: Gerar prompt ──
     prompt = (
         f"Create a mystical, abstract, artistic cover image for a spiritual profile. "
         f"The image should visually represent the astrological quartet: "
@@ -255,10 +266,13 @@ async def generate_cover_art(data: dict):
         f"High quality, digital art, vibrant colors."
     )
     
-    # Chamar DALL-E 3 com timeout adequado
+    logger.info(f"[CoverArt] ✅ Step 3: Prompt gerado ({len(prompt)} chars)")
+    
+    # ── Step 4: Chamar DALL-E 3 ──
     try:
+        dalle_start = time.time()
         async with httpx.AsyncClient(timeout=90.0) as client:
-            logger.info(f"Generating cover art for user {user_id} (Sol:{sol}, Lua:{lua})")
+            logger.info(f"[CoverArt] 🔄 Step 4: Chamando DALL-E 3 (timeout=90s)...")
             dalle_resp = await client.post(
                 "https://api.openai.com/v1/images/generations",
                 headers={
@@ -273,44 +287,57 @@ async def generate_cover_art(data: dict):
                     "quality": "standard"
                 }
             )
+            dalle_elapsed = time.time() - dalle_start
             
             if dalle_resp.status_code != 200:
-                error_detail = dalle_resp.text[:200]
-                logger.error(f"DALL-E error: {dalle_resp.status_code} - {error_detail}")
+                error_detail = dalle_resp.text[:500]
+                logger.error(f"[CoverArt] ❌ Step 4: DALL-E retornou HTTP {dalle_resp.status_code} em {dalle_elapsed:.1f}s — {error_detail}")
                 raise HTTPException(
                     status_code=502, 
                     detail=f"Erro na geração de imagem (HTTP {dalle_resp.status_code})"
                 )
             
             image_url = dalle_resp.json()["data"][0]["url"]
+            logger.info(f"[CoverArt] ✅ Step 4: DALL-E gerou imagem em {dalle_elapsed:.1f}s — URL obtida")
         
-        # Download da imagem gerada
+        # ── Step 5: Download da imagem gerada ──
+        download_start = time.time()
         async with httpx.AsyncClient(timeout=60.0) as client:
+            logger.info(f"[CoverArt] 🔄 Step 5: Baixando imagem do OpenAI...")
             img_resp = await client.get(image_url)
             if img_resp.status_code != 200:
+                logger.error(f"[CoverArt] ❌ Step 5: Download falhou — HTTP {img_resp.status_code}")
                 raise HTTPException(status_code=502, detail="Erro ao baixar imagem gerada")
             image_bytes = img_resp.content
+            download_elapsed = time.time() - download_start
+            logger.info(f"[CoverArt] ✅ Step 5: Imagem baixada em {download_elapsed:.1f}s — {len(image_bytes)} bytes")
         
-        # Upload para Bunny CDN
+        # ── Step 6: Upload para Bunny CDN ──
         bunny = get_bunny_storage()
         if not bunny:
+            logger.error("[CoverArt] ❌ Step 6: BunnyStorage não disponível")
             raise HTTPException(status_code=503, detail="Serviço de upload não disponível")
         
+        upload_start = time.time()
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         filename = f"{user_id}_{timestamp}_cover.png"
+        logger.info(f"[CoverArt] 🔄 Step 6: Enviando para Bunny CDN — {filename}")
         cdn_url = await bunny.upload_file(image_bytes, "covers", filename)
+        upload_elapsed = time.time() - upload_start
+        logger.info(f"[CoverArt] ✅ Step 6: Upload Bunny OK em {upload_elapsed:.1f}s — {cdn_url}")
         
-        # Atualizar community_profiles via Supabase client
+        # ── Step 7: Atualizar community_profiles ──
         try:
             supabase.table("community_profiles") \
                 .update({"cover_image": cdn_url}) \
                 .eq("user_id", user_id) \
                 .execute()
+            logger.info(f"[CoverArt] ✅ Step 7: community_profiles atualizado")
         except Exception as e:
-            logger.warning(f"Could not update community_profiles: {e}")
-            # Não falhar por isso — a imagem já foi gerada
+            logger.warning(f"[CoverArt] ⚠️ Step 7: Falha ao atualizar profile (não crítico): {e}")
         
-        logger.info(f"Cover art generated for user {user_id}: {cdn_url}")
+        total_elapsed = time.time() - start_time
+        logger.info(f"[CoverArt] 🎉 CONCLUÍDO em {total_elapsed:.1f}s — user={user_id} — {cdn_url}")
         
         return {
             "success": True,
@@ -320,13 +347,15 @@ async def generate_cover_art(data: dict):
         
     except HTTPException:
         raise
-    except httpx.TimeoutException:
-        logger.error(f"Timeout generating cover art for user {user_id}")
+    except httpx.TimeoutException as e:
+        elapsed = time.time() - start_time
+        logger.error(f"[CoverArt] ❌ TIMEOUT após {elapsed:.1f}s — user={user_id} — {e}")
         raise HTTPException(
             status_code=504, 
             detail="Timeout na geração de imagem. Tente novamente em alguns minutos."
         )
     except Exception as e:
-        logger.error(f"Cover art generation error: {e}")
+        elapsed = time.time() - start_time
+        logger.error(f"[CoverArt] ❌ ERRO INESPERADO após {elapsed:.1f}s — user={user_id} — {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao gerar capa: {str(e)}")
 
