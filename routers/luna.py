@@ -382,25 +382,15 @@ async def generate_bio(request: GenerateBioRequest):
     try:
         supabase = get_supabase_client()
         
-        # 1. Buscar perfil do usuário (coluna real: 'name', não 'nome')
+        # 1. Buscar perfil do usuário
+        # Campos reais da tabela profiles: name, nickname, sexo, profissao, estado_civil, tem_filhos, birth_date
         profile_result = supabase.table("profiles") \
-            .select("name, nickname") \
+            .select("name, nickname, sexo, profissao, estado_civil, tem_filhos") \
             .eq("id", request.user_id) \
             .limit(1) \
             .execute()
         
         profile = profile_result.data[0] if profile_result.data else {}
-        
-        # Buscar dados pessoais do quiz (sexo, profissao, etc.)
-        quiz_result = supabase.table("quiz_onboarding_answers") \
-            .select("sexo, profissao, estado_civil, tem_filhos") \
-            .eq("user_id", request.user_id) \
-            .limit(1) \
-            .execute()
-        
-        quiz = quiz_result.data[0] if quiz_result.data else {}
-        # Mesclar dados do quiz no profile para uso abaixo
-        profile = {**profile, **quiz}
         
         # 2. Buscar MAC
         mac_result = supabase.table("mapas_astrais") \
