@@ -382,14 +382,25 @@ async def generate_bio(request: GenerateBioRequest):
     try:
         supabase = get_supabase_client()
         
-        # 1. Buscar perfil do usuário
+        # 1. Buscar perfil do usuário (coluna real: 'name', não 'nome')
         profile_result = supabase.table("profiles") \
-            .select("nome, nickname, sexo, profissao, estado_civil, tem_filhos, data_nascimento") \
+            .select("name, nickname, data_nascimento") \
             .eq("id", request.user_id) \
             .limit(1) \
             .execute()
         
         profile = profile_result.data[0] if profile_result.data else {}
+        
+        # Buscar dados pessoais do quiz (sexo, profissao, etc.)
+        quiz_result = supabase.table("quiz_onboarding_answers") \
+            .select("sexo, profissao, estado_civil, tem_filhos") \
+            .eq("user_id", request.user_id) \
+            .limit(1) \
+            .execute()
+        
+        quiz = quiz_result.data[0] if quiz_result.data else {}
+        # Mesclar dados do quiz no profile para uso abaixo
+        profile = {**profile, **quiz}
         
         # 2. Buscar MAC
         mac_result = supabase.table("mapas_astrais") \
@@ -405,7 +416,8 @@ async def generate_bio(request: GenerateBioRequest):
         if profile.get("data_nascimento"):
             from datetime import datetime
             try:
-                nasc = datetime.strptime(profile["data_nascimento"], "%Y-%m-%d")
+                nasc_str = str(profile["data_nascimento"])
+                nasc = datetime.strptime(nasc_str[:10], "%Y-%m-%d")
                 idade = (datetime.now() - nasc).days // 365
                 if idade < 25:
                     idade_info = f"Pessoa jovem ({idade} anos) — use linguagem mais atual e energética."
@@ -419,7 +431,7 @@ async def generate_bio(request: GenerateBioRequest):
                 pass
         
         # 4. Montar contexto do perfil
-        nome = profile.get("nickname") or (profile.get("nome", "").split(" ")[0] if profile.get("nome") else "")
+        nome = profile.get("nickname") or (profile.get("name", "").split(" ")[0] if profile.get("name") else "")
         sexo = profile.get("sexo", "")
         profissao = profile.get("profissao", "")
         estado_civil = profile.get("estado_civil", "")
@@ -443,7 +455,7 @@ async def generate_bio(request: GenerateBioRequest):
         if mac.get("ascendente_signo"):
             ctx_astral.append(f"Ascendente em {mac['ascendente_signo']}")
         
-        import json
+        # json já importado no topo do arquivo
         
         # 5. Montar prompt
         prompt = f"""Gere EXATAMENTE 5 opções de bio para o perfil na comunidade de {nome or 'esta pessoa'}.

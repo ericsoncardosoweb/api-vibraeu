@@ -255,15 +255,37 @@ async def generate_cover_art(data: dict):
         raise HTTPException(status_code=500, detail="Erro ao buscar mapa astral")
     
     # ── Step 3: Gerar prompt ──
+    SIGN_ELEMENTS = {
+        'Ari': 'Fire', 'Tau': 'Earth', 'Gem': 'Air', 'Can': 'Water',
+        'Leo': 'Fire', 'Vir': 'Earth', 'Lib': 'Air', 'Sco': 'Water',
+        'Sag': 'Fire', 'Cap': 'Earth', 'Aqu': 'Air', 'Pis': 'Water',
+        'Áries': 'Fire', 'Touro': 'Earth', 'Gêmeos': 'Air', 'Câncer': 'Water',
+        'Leão': 'Fire', 'Virgem': 'Earth', 'Libra': 'Air', 'Escorpião': 'Water',
+        'Sagitário': 'Fire', 'Capricórnio': 'Earth', 'Aquário': 'Air', 'Peixes': 'Water'
+    }
+    
+    ELEMENT_VISUALS = {
+        'Fire': 'intense warm tones (deep crimson, burning orange, molten gold), flames, solar flares',
+        'Earth': 'rich earthy tones (deep emerald, amber, terracotta), crystals, mountains, ancient roots',
+        'Air': 'ethereal cool tones (silver, sky blue, lavender, pearl white), wind currents, light rays',
+        'Water': 'deep ocean tones (midnight blue, turquoise, deep purple), ocean waves, moonlight reflections'
+    }
+    
+    sol_el = SIGN_ELEMENTS.get(sol[:3], SIGN_ELEMENTS.get(sol, 'Fire'))
+    lua_el = SIGN_ELEMENTS.get(lua[:3], SIGN_ELEMENTS.get(lua, 'Water'))
+    
     prompt = (
-        f"Create a mystical, abstract, artistic cover image for a spiritual profile. "
-        f"The image should visually represent the astrological quartet: "
-        f"Sun in {sol}, Moon in {lua}, Ascendant in {asc}, Midheaven in {mc}. "
-        f"Use cosmic elements like nebulae, constellations, and celestial bodies. "
-        f"Color palette inspired by the zodiac signs. "
-        f"Wide banner format (1200x400), dreamy and ethereal style, "
-        f"no text, no letters, no words, purely visual art. "
-        f"High quality, digital art, vibrant colors."
+        f"Create a stunning mystical wide banner artwork (landscape 1200x400 ratio) for a spiritual profile. "
+        f"This person has Sun in {sol} ({sol_el} element), Moon in {lua} ({lua_el} element), "
+        f"Ascendant in {asc}, Midheaven in {mc}. "
+        f"PRIMARY COLOR PALETTE: {ELEMENT_VISUALS.get(sol_el, ELEMENT_VISUALS['Fire'])}. "
+        f"SECONDARY ACCENTS: {ELEMENT_VISUALS.get(lua_el, ELEMENT_VISUALS['Water'])}. "
+        f"Include the zodiac constellation pattern of {sol} glowing in the center, "
+        f"and the constellation of {lua} subtly woven into the background. "
+        f"Add a luminous crescent moon with {lua} energy on one side. "
+        f"Style: hyper-detailed digital art, cosmic nebulae, sacred geometry, stardust particles, "
+        f"ethereal glow effects, mystical luminescence. "
+        f"NO text, NO letters, NO words, NO numbers. Purely visual art. Ultra high quality."
     )
     
     logger.info(f"[CoverArt] ✅ Step 3: Prompt gerado ({len(prompt)} chars)")
