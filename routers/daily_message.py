@@ -2,8 +2,8 @@
 Router: Daily Message (Mensagem do Dia)
 
 Gera mensagens inspiracionais diárias PROFUNDAMENTE personalizadas usando IA.
-Prompt v4.0 — Contexto astrológico rico, dados pessoais, cruzamentos,
-numerologia e distribuição inteligente de fontes.
+Prompt v4.0 — Contexto astrológico rico, dados pessoais, cruzamentos
+e distribuição inteligente de fontes.
 
 Endpoints:
 - POST /daily-message/generate — Gera ou retorna mensagem do dia
@@ -59,7 +59,7 @@ FONTES = [
     'dia_semana', 'fase_lua', 'ascendente', 'meio_ceu',
     'profissao_contexto', 'reflexao_existencial', 'estacao_clima',
     'micro_momento', 'metafora_criativa', 'aniversario', 'feriado',
-    'elemento_pessoal', 'cruzamento_lunar', 'numerologia_dia',
+    'elemento_pessoal', 'cruzamento_lunar',
     'planeta_regente_dia', 'casa_lua_natal', 'roda_da_vida',
     'venus_e_afetos', 'marte_e_acao'
 ]
@@ -114,18 +114,7 @@ HARMONIA_ELEMENTOS = {
     ('Água', 'Água'): 'harmonia total — profundidade emocional amplificada',
 }
 
-# Numerologia — significados dos números
-NUMEROLOGIA_SIGNIFICADOS = {
-    1: {'tema': 'Início', 'energia': 'liderança, independência, novo começo, plantar sementes'},
-    2: {'tema': 'Parceria', 'energia': 'cooperação, diplomacia, equilíbrio, escutar o outro'},
-    3: {'tema': 'Expressão', 'energia': 'criatividade, comunicação, alegria, socializar'},
-    4: {'tema': 'Estrutura', 'energia': 'disciplina, organização, bases sólidas, paciência'},
-    5: {'tema': 'Liberdade', 'energia': 'mudança, aventura, adaptabilidade, sair da zona de conforto'},
-    6: {'tema': 'Responsabilidade', 'energia': 'família, harmonia, cuidado, lar, amor'},
-    7: {'tema': 'Introspecção', 'energia': 'espiritualidade, análise, descanso mental, sabedoria'},
-    8: {'tema': 'Poder', 'energia': 'abundância, conquistas materiais, autoridade, ambição'},
-    9: {'tema': 'Conclusão', 'energia': 'encerramento de ciclos, compaixão, desapego, humanidade'},
-}
+
 
 SYSTEM_PROMPT = """Você é um mentor de autoconhecimento e astrologia que gera mensagens diárias personalizadas para o app Vibra EU.
 Você conhece profundamente a pessoa e fala diretamente para ela, como um guia sábio e próximo.
@@ -242,18 +231,6 @@ def _obter_elemento(signo: Optional[str]) -> Optional[str]:
     return ELEMENTOS_POR_SIGNO.get(signo)
 
 
-def _calcular_numerologia_dia(data: datetime) -> Dict[str, Any]:
-    """Calcula o número pessoal do dia pela soma reduzida da data."""
-    date_str = data.strftime("%Y%m%d")
-    soma = sum(int(d) for d in date_str)
-    while soma > 9:
-        soma = sum(int(d) for d in str(soma))
-    info = NUMEROLOGIA_SIGNIFICADOS.get(soma, {'tema': 'Fluxo', 'energia': 'estar presente'})
-    return {
-        'numero': soma,
-        'tema': info['tema'],
-        'energia': info['energia']
-    }
 
 
 def _cruzamento_lua_dia_natal(lua_dia_signo: str, lua_natal_signo: Optional[str]) -> Optional[str]:
@@ -368,7 +345,6 @@ def _montar_prompt(
     tom: Dict[str, str],
     data_atual: datetime,
     tipo: str,  # 'personalizada' | 'generica'
-    numerologia: Dict[str, Any],
     cruzamento_lunar: Optional[str],
     roda_vida: Optional[Dict[str, Any]]
 ) -> str:
@@ -445,11 +421,7 @@ Foque na energia do dia, da lua e no contexto temporal.
 → USE este cruzamento para personalizar a mensagem. É um dado poderoso.
 """
 
-    # ===== NUMEROLOGIA =====
-    numero_bloco = f"""## 🔢 NUMEROLOGIA DO DIA: {numerologia['numero']}
-- Tema: {numerologia['tema']}
-- Energia: {numerologia['energia']}
-"""
+
 
     # ===== RODA DA VIDA =====
     roda_bloco = ''
@@ -478,7 +450,7 @@ Foque na energia do dia, da lua e no contexto temporal.
         'feriado': "Se hoje for feriado ou data especial, conecte com a mensagem.",
         'elemento_pessoal': f"Explore o elemento {contexto.get('elementoSolar', '')} de {nome} e como ele interage com o dia.",
         'cruzamento_lunar': "Use o cruzamento entre a lua do dia e a lua natal como base principal.",
-        'numerologia_dia': f"O número do dia é {numerologia['numero']} — tema '{numerologia['tema']}'. Use como fio condutor.",
+
         'planeta_regente_dia': f"{dia_semana['nome']} é regida por {dia_semana['planeta']}. Aprofunde a relação com o mapa da pessoa.",
         'casa_lua_natal': "Explore a casa onde a lua natal está posicionada e o que isso significa no cotidiano.",
         'roda_da_vida': "Use as áreas da Roda da Vida da pessoa como gancho principal da mensagem.",
@@ -503,7 +475,6 @@ Foque na energia do dia, da lua e no contexto temporal.
 
 {lua_bloco}
 {cruzamento_bloco}
-{numero_bloco}
 {roda_bloco}
 
 ## 🎯 FONTE DE INSPIRAÇÃO: {fonte.upper().replace('_', ' ')}
@@ -528,7 +499,7 @@ Ajuste a linguagem e abordagem de acordo com este tom.
   • Comece com uma metáfora
   • Comece com um insight astrológico
   • Comece com o nome + algo inesperado
-  • Comece pela numerologia ou pela fase da lua
+  • Comece pela fase da lua ou pelo elemento pessoal
 - A pessoa deve sentir que a mensagem foi escrita PARA ELA
 - Ajude-a a se PREPARAR para o dia, com insights práticos e emocionais
 - Integre os elementos astrológicos de forma natural (não como lista de dados)
@@ -538,7 +509,7 @@ Ajuste a linguagem e abordagem de acordo com este tom.
 1. A fase/signo da lua do dia
 2. Um elemento do mapa astral da pessoa (Sol, Lua, ASC, planetas)
 3. A energia do dia da semana / planeta regente
-4. A numerologia do dia
+4. A energia do planeta regente do dia da semana
 5. Um aspecto pessoal (profissão, estado civil, filhos, idade)
 
 ## OUTPUT
@@ -709,7 +680,6 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
     lua = _obter_dados_astronomicos()
 
     # ===== DADOS ENRIQUECIDOS v4.0 =====
-    numerologia = _calcular_numerologia_dia(data_atual)
     cruzamento_lunar = _cruzamento_lua_dia_natal(
         lua.get('signo', ''),
         contexto.get('signoLunar')
@@ -732,7 +702,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
 
     fonte = _selecionar_fonte(pesos_data, lua, contexto.get('dataNascimento'), data_atual)
     tom = _selecionar_tom()
-    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, numerologia, cruzamento_lunar, roda_vida)
+    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, cruzamento_lunar, roda_vida)
 
     # ===== CHAMAR LLM COM REGRA POR PLANO =====
     if is_pago:
@@ -806,7 +776,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                 'luaSigno': lua['signo'],
                 'isTransicao': lua['isTransicao'],
                 'diaSemana': _get_dia_semana(data_atual)['nome'],
-                'numerologia': numerologia['numero'],
+
                 'fonte': fonte,
                 'tom': tom['id'],
                 'cruzamentoLunar': cruzamento_lunar is not None,
@@ -853,7 +823,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
             'promptVersion': PROMPT_VERSION,
             'fonte': fonte,
             'tom': tom['id'],
-            'numerologia': numerologia['numero']
+
         }
     }
 
