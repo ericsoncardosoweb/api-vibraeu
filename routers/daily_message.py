@@ -2,8 +2,8 @@
 Router: Daily Message (Mensagem do Dia)
 
 Gera mensagens inspiracionais diárias PROFUNDAMENTE personalizadas usando IA.
-Prompt v4.0 — Contexto astrológico rico, dados pessoais, cruzamentos
-e distribuição inteligente de fontes.
+Prompt v5.0 — Fontes simplificadas (9), tom correlacionado à lua,
+estação dinâmica, perfil comportamental, fallback inteligente.
 
 Endpoints:
 - POST /daily-message/generate — Gera ou retorna mensagem do dia
@@ -42,7 +42,7 @@ class RateRequest(BaseModel):
 # CONSTANTES v4.0
 # ============================================================================
 
-PROMPT_VERSION = "4.0"
+PROMPT_VERSION = "5.0"
 MAX_TOKENS = 700
 GROQ_MODEL = "llama-3.3-70b-versatile"
 OPENAI_MODEL = "gpt-4.1-mini"
@@ -54,15 +54,61 @@ EXPRESSOES_BLOQUEADAS = [
     'meu caro', 'minha cara'
 ]
 
-# Fontes expandidas v4.0
+# Fontes v5.0 — 9 fontes simplificadas (agrupando redundantes)
 FONTES = [
-    'dia_semana', 'fase_lua', 'ascendente', 'meio_ceu',
-    'profissao_contexto', 'reflexao_existencial', 'estacao_clima',
-    'micro_momento', 'metafora_criativa', 'aniversario', 'feriado',
-    'elemento_pessoal', 'cruzamento_lunar',
-    'planeta_regente_dia', 'casa_lua_natal', 'roda_da_vida',
-    'venus_e_afetos', 'marte_e_acao'
+    'energia_do_dia',        # dia_semana + planeta_regente
+    'fase_lua',              # fase atual + signo da lua
+    'cruzamento_lunar',      # lua do dia × lua natal (requer MAC)
+    'mapa_astral',           # ascendente + meio_ceu + elemento_pessoal
+    'planetas_pessoais',     # venus + marte (requer MAC com esses campos)
+    'perfil_comportamental', # 4 animais (requer behavioral_profile_assessments)
+    'profissao_vida',        # profissão + micro_momento cotidiano
+    'reflexao_metafora',     # reflexão existencial + metáfora + estação
+    'aniversario',           # prioridade máxima quando é a data
 ]
+
+# Fontes que requerem dados específicos para funcionar
+FONTES_REQUISITOS = {
+    'cruzamento_lunar': lambda ctx: ctx.get('signoLunar') and ctx['signoLunar'] != 'não informado',
+    'mapa_astral': lambda ctx: ctx.get('signoSolar') and ctx['signoSolar'] != 'não informado',
+    'planetas_pessoais': lambda ctx: (
+        (ctx.get('venusSigno') and ctx['venusSigno'] != 'não informado') or
+        (ctx.get('marteSigno') and ctx['marteSigno'] != 'não informado')
+    ),
+    'perfil_comportamental': lambda ctx: ctx.get('_perfilComportamental') is not None,
+}
+
+# Perfis comportamentais — descrições para o prompt
+PERFIS_COMPORTAMENTAIS = {
+    'aguia': {'nome': 'Águia 🦅', 'lema': 'Fazer Diferente', 'energia': 'criativo, visionário, intuitivo, foco no futuro'},
+    'gato': {'nome': 'Gato 🐱', 'lema': 'Fazer Junto', 'energia': 'sensível, colaborativo, harmonizador, relacional'},
+    'lobo': {'nome': 'Lobo 🐺', 'lema': 'Fazer Certo', 'energia': 'organizado, estratégico, detalhista, metódico'},
+    'tubarao': {'nome': 'Tubarão 🦈', 'lema': 'Fazer Rápido', 'energia': 'ação, resultados, objetivo, determinado'},
+}
+
+# Estações do ano (hemisfério sul)
+ESTACOES = {
+    12: ('Verão', 'calor, energia expansiva, vitalidade, exuberância'),
+    1: ('Verão', 'calor, energia expansiva, vitalidade, exuberância'),
+    2: ('Verão', 'calor, energia expansiva, vitalidade, exuberância'),
+    3: ('Outono', 'transição, recolhimento gradual, introspecção, colheita'),
+    4: ('Outono', 'transição, recolhimento gradual, introspecção, colheita'),
+    5: ('Outono', 'transição, recolhimento gradual, introspecção, colheita'),
+    6: ('Inverno', 'frio, silêncio, profundidade, restauração interna'),
+    7: ('Inverno', 'frio, silêncio, profundidade, restauração interna'),
+    8: ('Inverno', 'frio, silêncio, profundidade, restauração interna'),
+    9: ('Primavera', 'renovação, florescimento, novos começos, despertar'),
+    10: ('Primavera', 'renovação, florescimento, novos começos, despertar'),
+    11: ('Primavera', 'renovação, florescimento, novos começos, despertar'),
+}
+
+# Tom correlacionado com fase lunar (peso 2x para tons alinhados)
+TOM_POR_FASE = {
+    'nova': ['mistico_intuitivo', 'profundo_transformador'],
+    'crescente': ['energico_motivador', 'estrategista_pratico'],
+    'cheia': ['afetuoso_acolhedor', 'leve_humorado'],
+    'minguante': ['sabio_sereno', 'provocativo_instigante'],
+}
 
 TONS = [
     {'id': 'sabio_sereno', 'nome': 'Sábio e Sereno', 'descricao': 'Contemplativo, metáforas naturais, poético'},
@@ -257,16 +303,11 @@ def _cruzamento_lua_dia_natal(lua_dia_signo: str, lua_natal_signo: Optional[str]
     return f"A Lua hoje em {lua_dia_signo} ({elem_dia}) faz um diálogo com sua Lua em {lua_natal_signo} ({elem_natal}) — {harmonia}."
 
 
-def _obter_resumo_roda_vida(sb, user_id: str) -> Optional[Dict[str, Any]]:
-    """Busca a Roda da Vida mais recente e retorna as 2 áreas mais fortes e 2 mais fracas."""
+def _obter_perfil_comportamental(sb, user_id: str) -> Optional[Dict[str, Any]]:
+    """Busca o perfil comportamental mais recente (4 animais)."""
     try:
-        areas_campos = [
-            'saude_fisica', 'saude_mental', 'financas', 'carreira',
-            'relacionamentos', 'familia', 'espiritualidade', 'lazer',
-            'crescimento_pessoal', 'contribuicao', 'ambiente', 'proposito'
-        ]
-        resp = sb.client.table('roda_vida') \
-            .select(', '.join(areas_campos)) \
+        resp = sb.client.table('behavioral_profile_assessments') \
+            .select('perfil_predominante, pontuacao_aguia, pontuacao_gato, pontuacao_lobo, pontuacao_tubarao') \
             .eq('user_id', user_id) \
             .order('created_at', desc=True) \
             .limit(1) \
@@ -275,67 +316,82 @@ def _obter_resumo_roda_vida(sb, user_id: str) -> Optional[Dict[str, Any]]:
         if not resp.data:
             return None
 
-        roda = resp.data[0]
-        notas = {}
-        for campo in areas_campos:
-            val = roda.get(campo)
-            if val is not None:
-                label = campo.replace('_', ' ').title()
-                notas[label] = val
-
-        if len(notas) < 4:
-            return None
-
-        ordenado = sorted(notas.items(), key=lambda x: x[1])
-        mais_fracas = ordenado[:2]
-        mais_fortes = ordenado[-2:]
+        perfil = resp.data[0]
+        predominante = perfil.get('perfil_predominante', '').lower()
+        info = PERFIS_COMPORTAMENTAIS.get(predominante, {})
 
         return {
-            'mais_fortes': [{'area': a, 'nota': n} for a, n in mais_fortes],
-            'mais_fracas': [{'area': a, 'nota': n} for a, n in mais_fracas],
+            'predominante': predominante,
+            'nome': info.get('nome', predominante.title()),
+            'lema': info.get('lema', ''),
+            'energia': info.get('energia', ''),
+            'pontuacoes': {
+                'aguia': perfil.get('pontuacao_aguia', 0),
+                'gato': perfil.get('pontuacao_gato', 0),
+                'lobo': perfil.get('pontuacao_lobo', 0),
+                'tubarao': perfil.get('pontuacao_tubarao', 0),
+            }
         }
     except Exception as e:
-        logger.warning(f"[MensagemDia] Erro ao buscar Roda da Vida: {e}")
+        logger.warning(f"[MensagemDia] Erro ao buscar Perfil Comportamental: {e}")
         return None
 
 
+def _obter_estacao_atual(data: datetime) -> Dict[str, str]:
+    """Retorna estação do ano com base no mês (hemisfério sul)."""
+    est = ESTACOES.get(data.month, ('Verão', 'energia expansiva'))
+    return {'nome': est[0], 'energia': est[1]}
+
+
 # ============================================================================
-# SELEÇÃO DE FONTE E TOM
+# SELEÇÃO DE FONTE E TOM v5.0
 # ============================================================================
 
-def _selecionar_fonte(pesos_data: Optional[List], lua: Dict, data_nascimento: Optional[str], data_atual: datetime) -> str:
+def _filtrar_fontes_disponiveis(contexto: Dict[str, Any]) -> List[str]:
+    """Retorna apenas fontes cujos dados estão disponíveis no contexto."""
+    disponiveis = []
+    for fonte in FONTES:
+        if fonte == 'aniversario':
+            continue  # tratado separadamente
+        requisito = FONTES_REQUISITOS.get(fonte)
+        if requisito is None or requisito(contexto):
+            disponiveis.append(fonte)
+    return disponiveis
+
+
+def _selecionar_fonte(contexto: Dict[str, Any], lua: Dict, data_nascimento: Optional[str], data_atual: datetime) -> str:
+    """Seleciona fonte com fallback inteligente — só oferece fontes com dados."""
     if _is_aniversario(data_nascimento, data_atual):
         return 'aniversario'
 
-    if not pesos_data:
-        return random.choice(FONTES)
+    disponiveis = _filtrar_fontes_disponiveis(contexto)
+    if not disponiveis:
+        disponiveis = ['energia_do_dia', 'fase_lua', 'reflexao_metafora']
 
-    pesos_calculados = []
-    for p in pesos_data:
-        peso_final = p.get('peso_base', 1)
-        condicao_boost = p.get('condicao_boost', {})
-        if condicao_boost:
-            if condicao_boost.get('inicio_fase') and lua.get('isTransicao') and p.get('fonte') == 'fase_lua':
-                peso_final *= condicao_boost['inicio_fase']
-        pesos_calculados.append({'fonte': p['fonte'], 'peso': peso_final})
+    # Boost para fase_lua quando há transição
+    if lua.get('isTransicao') and 'fase_lua' in disponiveis:
+        disponiveis.append('fase_lua')  # dobra a chance
 
-    total_peso = sum(p['peso'] for p in pesos_calculados)
-    r = random.random() * total_peso
-    for p in pesos_calculados:
-        r -= p['peso']
-        if r <= 0:
-            return p['fonte']
-
-    return 'reflexao_existencial'
+    return random.choice(disponiveis)
 
 
-def _selecionar_tom() -> Dict[str, str]:
-    tom = random.choice(TONS)
-    return {'id': tom['id'], 'nome': tom['nome']}
+def _selecionar_tom(lua: Dict) -> Dict[str, str]:
+    """Seleciona tom com correlação à fase lunar (peso 2x para tons alinhados)."""
+    fase = lua.get('faseSimplificada', 'crescente')
+    tons_alinhados = TOM_POR_FASE.get(fase, [])
+
+    # Construir lista ponderada: 2x para alinhados, 1x para demais
+    pool = []
+    for tom in TONS:
+        peso = 2 if tom['id'] in tons_alinhados else 1
+        pool.extend([tom] * peso)
+
+    escolhido = random.choice(pool)
+    return {'id': escolhido['id'], 'nome': escolhido['nome']}
 
 
 # ============================================================================
-# PROMPT v4.0 — PROFUNDAMENTE PERSONALIZADO
+# PROMPT v5.0 — INTELIGENTE E SIMPLIFICADO
 # ============================================================================
 
 def _montar_prompt(
@@ -346,7 +402,7 @@ def _montar_prompt(
     data_atual: datetime,
     tipo: str,  # 'personalizada' | 'generica'
     cruzamento_lunar: Optional[str],
-    roda_vida: Optional[Dict[str, Any]]
+    perfil_comp: Optional[Dict[str, Any]]
 ) -> str:
     dia_semana = _get_dia_semana(data_atual)
 
@@ -423,39 +479,35 @@ Foque na energia do dia, da lua e no contexto temporal.
 
 
 
-    # ===== RODA DA VIDA =====
-    roda_bloco = ''
-    if roda_vida:
-        fortes = ', '.join(f"{a['area']} ({a['nota']})" for a in roda_vida['mais_fortes'])
-        fracas = ', '.join(f"{a['area']} ({a['nota']})" for a in roda_vida['mais_fracas'])
-        roda_bloco = f"""
-## 🎯 RODA DA VIDA (autoavaliação recente)
-- Áreas mais fortes: {fortes}
-- Áreas pedindo atenção: {fracas}
-→ Quando a fonte for 'roda_da_vida', use isso como gancho principal.
+    # ===== PERFIL COMPORTAMENTAL =====
+    perfil_bloco = ''
+    if perfil_comp:
+        pontuacoes = perfil_comp.get('pontuacoes', {})
+        pontuacoes_str = ', '.join(f"{k.title()} {v}" for k, v in sorted(pontuacoes.items(), key=lambda x: -x[1]))
+        perfil_bloco = f"""
+## 🧠 PERFIL COMPORTAMENTAL (Teste dos 4 Animais)
+- Perfil Predominante: {perfil_comp['nome']}
+- Lema: "{perfil_comp['lema']}"
+- Energia: {perfil_comp['energia']}
+- Pontuações: {pontuacoes_str}
+→ Quando a fonte for 'perfil_comportamental', use o perfil predominante como fio condutor.
+→ Nas demais fontes, pode usar sutilmente para personalizar o tom.
 """
 
-    # ===== INSTRUÇÕES POR FONTE =====
-    instrucoes_fonte = {
-        'dia_semana': f"Foque na energia de {dia_semana['nome']} regida por {dia_semana['planeta']}: {dia_semana['energia']}.",
-        'fase_lua': f"A lua está {lua['fase']} em {lua['signo']}. Explore o significado dessa fase e como ela influencia o dia.",
-        'ascendente': f"O ascendente de {nome} revela como ela se apresenta ao mundo. Use isso.",
-        'meio_ceu': f"O Meio do Céu revela a vocação e propósito profissional de {nome}. Conecte com o dia.",
-        'profissao_contexto': f"Considere a profissão de {nome} ({contexto.get('profissao', 'não informada')}) como contexto.",
-        'reflexao_existencial': "Faça uma reflexão profunda sobre a vida, o momento, os ciclos.",
-        'estacao_clima': f"Estamos em fevereiro no hemisfério sul — verão, calor, energia expansiva.",
-        'micro_momento': "Traga um micro-momento do cotidiano como metáfora (café da manhã, espelho, primeiro passo).",
-        'metafora_criativa': "Use uma metáfora criativa e original como fio condutor da mensagem.",
-        'aniversario': f"Hoje é aniversário de {nome}! Celebre de forma especial e significativa.",
-        'feriado': "Se hoje for feriado ou data especial, conecte com a mensagem.",
-        'elemento_pessoal': f"Explore o elemento {contexto.get('elementoSolar', '')} de {nome} e como ele interage com o dia.",
-        'cruzamento_lunar': "Use o cruzamento entre a lua do dia e a lua natal como base principal.",
+    # ===== ESTAÇÃO DO ANO (dinâmica) =====
+    estacao = _obter_estacao_atual(data_atual)
 
-        'planeta_regente_dia': f"{dia_semana['nome']} é regida por {dia_semana['planeta']}. Aprofunde a relação com o mapa da pessoa.",
-        'casa_lua_natal': "Explore a casa onde a lua natal está posicionada e o que isso significa no cotidiano.",
-        'roda_da_vida': "Use as áreas da Roda da Vida da pessoa como gancho principal da mensagem.",
-        'venus_e_afetos': f"Explore Vênus ({contexto.get('venusSigno', 'não informado')}) — amor próprio, valores, relações.",
-        'marte_e_acao': f"Explore Marte ({contexto.get('marteSigno', 'não informado')}) — ação, coragem, energia vital.",
+    # ===== INSTRUÇÕES POR FONTE v5.0 =====
+    instrucoes_fonte = {
+        'energia_do_dia': f"Foque na energia de {dia_semana['nome']}, regida por {dia_semana['planeta']}: {dia_semana['energia']}. Conecte a vibração planetária com o momento da pessoa.",
+        'fase_lua': f"A lua está {lua['fase']} em {lua['signo']}. Explore profundamente o significado dessa fase e como ela influencia emoções, decisões e o ritmo do dia.",
+        'cruzamento_lunar': "Use o cruzamento entre a lua do dia e a lua natal como base principal da mensagem. É um dado poderoso e altamente personalizado.",
+        'mapa_astral': f"Explore o mapa astral de {nome}: Sol em {contexto.get('signoSolar', '?')}, Ascendente em {contexto.get('ascendente', '?')}, Meio do Céu em {contexto.get('meioCeu', '?')}. Conecte com o dia.",
+        'planetas_pessoais': f"Explore Vênus ({contexto.get('venusSigno', '?')}) para amor/valores e Marte ({contexto.get('marteSigno', '?')}) para ação/energia. Conecte com o momento.",
+        'perfil_comportamental': f"Use o perfil comportamental de {nome} ({perfil_comp['nome'] if perfil_comp else '?'}) como fio condutor. Conecte o lema '{perfil_comp['lema'] if perfil_comp else ''}' com a energia do dia.",
+        'profissao_vida': f"Considere a profissão de {nome} ({contexto.get('profissao', 'não informada')}) e traga um micro-momento do cotidiano (café da manhã, espelho, primeiro passo) como metáfora.",
+        'reflexao_metafora': f"Crie uma reflexão existencial usando uma metáfora criativa e original. Considere que estamos na estação {estacao['nome']} ({estacao['energia']}).",
+        'aniversario': f"Hoje é aniversário de {nome}! Celebre de forma especial, significativa e conectada com o mapa astral.",
     }
 
     instrucao_fonte = instrucoes_fonte.get(fonte, 'Use abordagem criativa e variada.')
@@ -472,10 +524,11 @@ Foque na energia do dia, da lua e no contexto temporal.
 - Data: {data_formatada}
 - Dia da Semana: {dia_semana['nome']} (Planeta regente: {dia_semana['planeta']})
 - Energia do dia: {dia_semana['energia']}
+- Estação: {estacao['nome']} ({estacao['energia']})
 
 {lua_bloco}
 {cruzamento_bloco}
-{roda_bloco}
+{perfil_bloco}
 
 ## 🎯 FONTE DE INSPIRAÇÃO: {fonte.upper().replace('_', ' ')}
 {instrucao_fonte}
@@ -496,21 +549,22 @@ Ajuste a linguagem e abordagem de acordo com este tom.
 - Varie SEMPRE a abertura. Exemplos de aberturas variadas:
   • Comece com uma pergunta reflexiva
   • Comece com a energia do dia/lua
-  • Comece com uma metáfora
+  • Comece com uma metáfora da estação
   • Comece com um insight astrológico
   • Comece com o nome + algo inesperado
-  • Comece pela fase da lua ou pelo elemento pessoal
+  • Comece pelo perfil comportamental ou elemento pessoal
 - A pessoa deve sentir que a mensagem foi escrita PARA ELA
 - Ajude-a a se PREPARAR para o dia, com insights práticos e emocionais
 - Integre os elementos astrológicos de forma natural (não como lista de dados)
+- Se o perfil comportamental estiver disponível, adapte sutilmente a abordagem ao estilo da pessoa
 - Seja um guia sábio que conhece os astros E conhece a pessoa
 
 ### 🔮 OBRIGATÓRIO — INTEGRE PELO MENOS 2 DESTES:
 1. A fase/signo da lua do dia
 2. Um elemento do mapa astral da pessoa (Sol, Lua, ASC, planetas)
 3. A energia do dia da semana / planeta regente
-4. A energia do planeta regente do dia da semana
-5. Um aspecto pessoal (profissão, estado civil, filhos, idade)
+4. A estação do ano e como ela influencia o momento
+5. Um aspecto pessoal (profissão, estado civil, filhos, perfil comportamental)
 
 ## OUTPUT
 Responda APENAS com JSON válido, sem texto adicional:
@@ -679,30 +733,22 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
     # ===== DADOS ASTRONÔMICOS (via Kerykeion) =====
     lua = _obter_dados_astronomicos()
 
-    # ===== DADOS ENRIQUECIDOS v4.0 =====
+    # ===== DADOS ENRIQUECIDOS v5.0 =====
     cruzamento_lunar = _cruzamento_lua_dia_natal(
         lua.get('signo', ''),
         contexto.get('signoLunar')
     ) if tipo == 'personalizada' else None
 
-    roda_vida = None
+    perfil_comp = None
     if tipo == 'personalizada' and user_id:
-        roda_vida = _obter_resumo_roda_vida(sb, user_id)
+        perfil_comp = _obter_perfil_comportamental(sb, user_id)
+        # Marcar no contexto para que o fallback inteligente saiba
+        if perfil_comp:
+            contexto['_perfilComportamental'] = perfil_comp
 
-    # Buscar pesos do banco
-    pesos_data = None
-    try:
-        pesos_resp = sb.client.table('mensagem_pesos') \
-            .select('*') \
-            .eq('ativo', True) \
-            .execute()
-        pesos_data = pesos_resp.data
-    except Exception as e:
-        logger.warning(f"[MensagemDia] Sem pesos no banco: {e}")
-
-    fonte = _selecionar_fonte(pesos_data, lua, contexto.get('dataNascimento'), data_atual)
-    tom = _selecionar_tom()
-    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, cruzamento_lunar, roda_vida)
+    fonte = _selecionar_fonte(contexto, lua, contexto.get('dataNascimento'), data_atual)
+    tom = _selecionar_tom(lua)
+    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, cruzamento_lunar, perfil_comp)
 
     # ===== CHAMAR LLM COM REGRA POR PLANO =====
     if is_pago:
@@ -726,7 +772,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         }
         modelo_usado = GROQ_MODEL
 
-    logger.info(f"[MensagemDia v4.0] Gerando para user={user_id}, tipo={tipo}, fonte={fonte}, tom={tom['id']}, provider={llm_config['provider']}")
+    logger.info(f"[MensagemDia v5.0] Gerando para user={user_id}, tipo={tipo}, fonte={fonte}, tom={tom['id']}, provider={llm_config['provider']}")
 
     gateway = LLMGateway.get_instance()
     start_time = datetime.now(pytz.utc)
@@ -776,11 +822,10 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                 'luaSigno': lua['signo'],
                 'isTransicao': lua['isTransicao'],
                 'diaSemana': _get_dia_semana(data_atual)['nome'],
-
                 'fonte': fonte,
                 'tom': tom['id'],
                 'cruzamentoLunar': cruzamento_lunar is not None,
-                'rodaVida': roda_vida is not None
+                'perfilComportamental': perfil_comp.get('predominante') if perfil_comp else None
             },
             'modelo_ia': modelo_usado,
             'tokens_usados': 0,
@@ -797,7 +842,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         if save_resp.data:
             saved_id = save_resp.data[0].get('id')
 
-        logger.info(f"[MensagemDia v4.0] ✓ Salva com sucesso para user={user_id} (fonte={fonte}, tom={tom['id']})")
+        logger.info(f"[MensagemDia v5.0] ✓ Salva com sucesso para user={user_id} (fonte={fonte}, tom={tom['id']})")
     except Exception as e:
         logger.error(f"[MensagemDia] Erro ao salvar: {e}")
 
