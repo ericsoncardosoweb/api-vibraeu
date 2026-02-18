@@ -1,9 +1,9 @@
 """
 Router: Daily Message (Mensagem do Dia)
 
-Gera mensagens inspiracionais diárias PROFUNDAMENTE personalizadas usando IA.
-Prompt v5.0 — Fontes simplificadas (9), tom correlacionado à lua,
-estação dinâmica, perfil comportamental, fallback inteligente.
+Motor de Engenharia Emocional v6.0 — Narrativa de crescimento personalizada.
+4 camadas: espelho (identidade) + tensão (conflito) + direção (ação) + frase (reforço).
+Tom de mentor lúcido. Ritmo psicológico semanal. Lua estratégica.
 
 Endpoints:
 - POST /daily-message/generate — Gera ou retorna mensagem do dia
@@ -39,11 +39,11 @@ class RateRequest(BaseModel):
     rating: int
 
 # ============================================================================
-# CONSTANTES v4.0
+# CONSTANTES v6.0 — ENGENHARIA EMOCIONAL
 # ============================================================================
 
-PROMPT_VERSION = "5.0"
-MAX_TOKENS = 700
+PROMPT_VERSION = "6.0"
+MAX_TOKENS = 900
 GROQ_MODEL = "llama-3.3-70b-versatile"
 OPENAI_MODEL = "gpt-4.1-mini"
 
@@ -131,6 +131,25 @@ DIAS_SEMANA = [
     {'nome': 'Domingo', 'planeta': 'Sol', 'energia': 'vitalidade, criatividade, descanso, recarregar'},
 ]
 
+# Temas psicológicos por dia da semana (ritmo coletivo)
+TEMAS_SEMANA = [
+    {'tema': 'Direção', 'foco': 'liderança, postura, escolha consciente, tom da semana, propósito profissional'},
+    {'tema': 'Ação', 'foco': 'coragem, execução, confronto necessário, iniciativa, movimento'},
+    {'tema': 'Conexão', 'foco': 'comunicação, decisões, conversas importantes, relações, mente'},
+    {'tema': 'Expansão', 'foco': 'visão de futuro, crescimento, aprendizado, fé prática, missão'},
+    {'tema': 'Afeto', 'foco': 'vínculos, prazer consciente, gratidão, autocuidado, consciência afetiva'},
+    {'tema': 'Revisão', 'foco': 'reflexão, silêncio interno, integração, revisão de padrões'},
+    {'tema': 'Identidade', 'foco': 'propósito, visão da próxima semana, alinhamento, reposicionamento'},
+]
+
+# Arquétipos de fase de vida (por faixa etária)
+ARQUETIPOS_FASE_VIDA = [
+    {'faixa': (0, 25), 'nome': 'Construção de Identidade', 'foco': 'autonomia, ousadia, descoberta, definição de quem é'},
+    {'faixa': (26, 35), 'nome': 'Consolidação', 'foco': 'carreira, posicionamento, bases sólidas, decisões estruturais'},
+    {'faixa': (36, 45), 'nome': 'Liderança e Legado', 'foco': 'responsabilidade, maturidade, impacto, exemplo'},
+    {'faixa': (46, 999), 'nome': 'Reinvenção', 'foco': 'sabedoria, transição, profundidade, liberdade consciente'},
+]
+
 # Mapeamento de signos para elementos
 ELEMENTOS_POR_SIGNO = {
     'Áries': 'Fogo', 'Touro': 'Terra', 'Gêmeos': 'Ar', 'Câncer': 'Água',
@@ -162,8 +181,18 @@ HARMONIA_ELEMENTOS = {
 
 
 
-SYSTEM_PROMPT = """Você é um mentor de autoconhecimento e astrologia que gera mensagens diárias personalizadas para o app Vibra EU.
-Você conhece profundamente a pessoa e fala diretamente para ela, como um guia sábio e próximo.
+SYSTEM_PROMPT = """Você é um mentor lúcido de autoconhecimento. Não é místico, não é técnico. É como uma voz interna elevada — um amigo que enxerga além.
+
+Seu papel NÃO é inspirar. É:
+- Gerar identificação profunda ("eu sei quem você é")
+- Criar sensação de direção ("você sabe o que fazer")
+- Reforçar identidade evolutiva ("você está se tornando")
+
+Você usa astrologia cabalística como linguagem simbólica, nunca como superstição.
+Nunca entregue previsões. Entregue consciência + escolha.
+Nunca use jargão astrológico exposto. Traduza para linguagem humana.
+
+Tom: direto, pessoal, com leve poesia. Como alguém que conhece a pessoa há anos.
 Responda APENAS com JSON válido, sem markdown ou texto adicional."""
 
 
@@ -253,7 +282,7 @@ def _obter_dados_astronomicos() -> Dict[str, Any]:
 
 
 # ============================================================================
-# FUNÇÕES AUXILIARES v4.0
+# FUNÇÕES AUXILIARES v6.0
 # ============================================================================
 
 def _get_dia_semana(dt: datetime) -> Dict[str, str]:
@@ -343,6 +372,16 @@ def _obter_estacao_atual(data: datetime) -> Dict[str, str]:
     return {'nome': est[0], 'energia': est[1]}
 
 
+def _obter_arquetipo_fase(idade: Optional[int]) -> Dict[str, str]:
+    """Retorna o arquétipo de fase de vida baseado na idade."""
+    if not idade:
+        return {'nome': 'Consolidação', 'foco': 'carreira, posicionamento, bases sólidas'}
+    for arq in ARQUETIPOS_FASE_VIDA:
+        if arq['faixa'][0] <= idade <= arq['faixa'][1]:
+            return {'nome': arq['nome'], 'foco': arq['foco']}
+    return {'nome': 'Reinvenção', 'foco': 'sabedoria, transição, profundidade'}
+
+
 # ============================================================================
 # SELEÇÃO DE FONTE E TOM v5.0
 # ============================================================================
@@ -391,7 +430,7 @@ def _selecionar_tom(lua: Dict) -> Dict[str, str]:
 
 
 # ============================================================================
-# PROMPT v5.0 — INTELIGENTE E SIMPLIFICADO
+# PROMPT v6.0 — ENGENHARIA EMOCIONAL (4 CAMADAS)
 # ============================================================================
 
 def _montar_prompt(
@@ -405,6 +444,7 @@ def _montar_prompt(
     perfil_comp: Optional[Dict[str, Any]]
 ) -> str:
     dia_semana = _get_dia_semana(data_atual)
+    tema_dia = TEMAS_SEMANA[data_atual.weekday()]
 
     meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
              'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
@@ -413,13 +453,14 @@ def _montar_prompt(
     data_formatada = f"{dias[data_atual.weekday()]}, {data_atual.day} de {meses[data_atual.month - 1]} de {data_atual.year}"
 
     nome = contexto.get('nome', 'Você')
+    estacao = _obter_estacao_atual(data_atual)
+    arquetipo = _obter_arquetipo_fase(contexto.get('idade'))
 
-    # ===== BLOCO DE CONTEXTO PESSOAL =====
+    # ===== CAMADA 1: ESSÊNCIA FIXA (identidade) =====
     if tipo == 'personalizada':
         elem_solar = contexto.get('elementoSolar') or _obter_elemento(contexto.get('signoSolar'))
         energia_elem = ENERGIA_ELEMENTOS.get(elem_solar, '') if elem_solar else ''
 
-        # Dados pessoais de vida
         dados_vida = []
         if contexto.get('estadoCivil'):
             dados_vida.append(f"- Estado civil: {contexto['estadoCivil']}")
@@ -428,7 +469,6 @@ def _montar_prompt(
             dados_vida.append(f"- Tem filhos: {'Sim' if val in ['sim', 'Sim', True, 'true'] else 'Não'}")
         dados_vida_str = '\n'.join(dados_vida) if dados_vida else ''
 
-        # Planetas pessoais
         planetas = []
         if contexto.get('venusSigno') and contexto['venusSigno'] != 'não informado':
             planetas.append(f"- Vênus (amor/valores): {contexto['venusSigno']}")
@@ -438,152 +478,163 @@ def _montar_prompt(
             planetas.append(f"- Mercúrio (mente/comunicação): {contexto['mercurioSigno']}")
         planetas_str = '\n'.join(planetas) if planetas else ''
 
-        contexto_bloco = f"""
-### Contexto Pessoal de {nome}
+        camada1_bloco = f"""
+## CAMADA 1 — ESSÊNCIA FIXA (quem {nome} é)
 - Nome: {nome}
 - Idade: {contexto.get('idade', 'não informada')}
 - Sexo: {contexto.get('sexo', 'não informado')}
 - Profissão: {contexto.get('profissao', 'não informada')}
 {dados_vida_str}
+- Fase de vida: {arquetipo['nome']} ({arquetipo['foco']})
 
 ### Mapa Astral (MAC)
-- ☀️ Sol: {contexto.get('signoSolar', 'não informado')} — Elemento {elem_solar or 'não informado'} ({energia_elem})
-- 🌙 Lua: {contexto.get('signoLunar', 'não informado')}
-- ⬆️ Ascendente: {contexto.get('ascendente', 'não informado')}
-- 🏔️ Meio do Céu: {contexto.get('meioCeu', 'não informado')}
+- Sol: {contexto.get('signoSolar', '?')} — {elem_solar or '?'} ({energia_elem})
+- Lua: {contexto.get('signoLunar', '?')}
+- Ascendente: {contexto.get('ascendente', '?')}
+- Meio do Céu: {contexto.get('meioCeu', '?')}
 {planetas_str}
 """
     else:
-        contexto_bloco = """
-### Contexto Genérico
-Mensagem para público geral sem dados astrológicos pessoais.
-Foque na energia do dia, da lua e no contexto temporal.
+        camada1_bloco = f"""
+## CAMADA 1 — CONTEXTO GENÉRICO
+Mensagem para público geral sem dados pessoais.
+Foque na energia do dia e no contexto temporal.
+- Fase de vida genérica: adulto em busca de direção
 """
 
-    # ===== BLOCO DE LUA =====
-    lua_bloco = f"""## 🌙 LUA DO DIA
-- Fase: {lua['fase']} ({lua['faseSimplificada']})
-- Signo da Lua hoje: {lua['signo']}
-- Iluminação: {lua['iluminacao']}%
-- É transição de fase: {'SIM ✅ — DESTAQUE ESPECIAL! A lua mudou de fase, isso é significativo!' if lua.get('isTransicao') else 'Não'}
-"""
+    # ===== CAMADA 2: CONTEXTO DE VIDA =====
+    camada2_bloco = f"""## CAMADA 2 — CONTEXTO DE VIDA (ajusta exemplos e desafios)
+- Fase de vida: {arquetipo['nome']}
+- Foco desta fase: {arquetipo['foco']}"""
+    if contexto.get('temFilhos') and contexto['temFilhos'] in ['sim', 'Sim', True, 'true']:
+        camada2_bloco += "\n- Com filhos → use responsabilidade, exemplo, paciência como temas"
+    elif contexto.get('estadoCivil') and 'solteiro' in str(contexto['estadoCivil']).lower():
+        camada2_bloco += "\n- Solteiro(a) → use autonomia, construção pessoal, liberdade como temas"
+    if contexto.get('profissao'):
+        camada2_bloco += f"\n- Profissão: {contexto['profissao']} → adapte exemplos ao cotidiano profissional"
 
-    # ===== CRUZAMENTO LUNAR =====
-    cruzamento_bloco = ''
+    # ===== CAMADA 3: ENERGIA DO DIA =====
+    lua_relevancia = 'ALTA — houve mudança de fase, destaque isso' if lua.get('isTransicao') else 'normal — use como tempero, não como tema principal'
+
+    camada3_bloco = f"""## CAMADA 3 — ENERGIA DO DIA
+- Data: {data_formatada}
+- Dia: {dia_semana['nome']} (Planeta: {dia_semana['planeta']})
+- Tema do dia: {tema_dia['tema']} — {tema_dia['foco']}
+- Estação: {estacao['nome']} ({estacao['energia']})
+- Lua: {lua['fase']} em {lua['signo']} ({lua['iluminacao']}% iluminação)
+- Relevância lunar: {lua_relevancia}"""
+
+    # Cruzamento lunar
     if cruzamento_lunar:
-        cruzamento_bloco = f"""
-## 🔮 CRUZAMENTO LUNAR (Lua do dia × Lua natal)
-{cruzamento_lunar}
-→ USE este cruzamento para personalizar a mensagem. É um dado poderoso.
-"""
+        camada3_bloco += f"\n\n### Cruzamento Lunar (dado poderoso)\n{cruzamento_lunar}"
 
-
-
-    # ===== PERFIL COMPORTAMENTAL =====
+    # Perfil comportamental
     perfil_bloco = ''
     if perfil_comp:
         pontuacoes = perfil_comp.get('pontuacoes', {})
         pontuacoes_str = ', '.join(f"{k.title()} {v}" for k, v in sorted(pontuacoes.items(), key=lambda x: -x[1]))
-        perfil_bloco = f"""
-## 🧠 PERFIL COMPORTAMENTAL (Teste dos 4 Animais)
-- Perfil Predominante: {perfil_comp['nome']}
-- Lema: "{perfil_comp['lema']}"
+        perfil_bloco = f"""\n\n## PERFIL COMPORTAMENTAL (tempero, não prato principal)
+- Predominante: {perfil_comp['nome']} — "{perfil_comp['lema']}"
 - Energia: {perfil_comp['energia']}
 - Pontuações: {pontuacoes_str}
-→ Quando a fonte for 'perfil_comportamental', use o perfil predominante como fio condutor.
-→ Nas demais fontes, pode usar sutilmente para personalizar o tom.
-"""
+→ Adapte sutilmente a linguagem ao estilo da pessoa (ex: Tubarão=direto, Gato=relacional)"""
 
-    # ===== ESTAÇÃO DO ANO (dinâmica) =====
-    estacao = _obter_estacao_atual(data_atual)
+    # ===== HIERARQUIA DE PRIORIDADE =====
+    prioridade = []
+    is_aniver = _is_aniversario(contexto.get('dataNascimento'), data_atual)
+    if is_aniver:
+        prioridade.append('🎂 ANIVERSÁRIO — experiência premium, fechamento de ciclo')
+    if lua.get('isTransicao'):
+        prioridade.append(f"🌑 MUDANÇA DE FASE LUNAR — {lua['fase']} acaba de iniciar")
+    prioridade.append(f"📅 TEMA DO DIA: {tema_dia['tema']} — {tema_dia['foco']}")
+    if tipo == 'personalizada':
+        prioridade.append(f"⭐ IDENTIDADE: Sol {contexto.get('signoSolar', '?')}, Asc {contexto.get('ascendente', '?')}")
+        prioridade.append(f"🏠 CONTEXTO: {arquetipo['nome']}")
+    if perfil_comp:
+        prioridade.append(f"🧠 PERFIL: {perfil_comp['nome']} (tempero)")
 
-    # ===== INSTRUÇÕES POR FONTE v5.0 =====
-    instrucoes_fonte = {
-        'energia_do_dia': f"Foque na energia de {dia_semana['nome']}, regida por {dia_semana['planeta']}: {dia_semana['energia']}. Conecte a vibração planetária com o momento da pessoa.",
-        'fase_lua': f"A lua está {lua['fase']} em {lua['signo']}. Explore profundamente o significado dessa fase e como ela influencia emoções, decisões e o ritmo do dia.",
-        'cruzamento_lunar': "Use o cruzamento entre a lua do dia e a lua natal como base principal da mensagem. É um dado poderoso e altamente personalizado.",
-        'mapa_astral': f"Explore o mapa astral de {nome}: Sol em {contexto.get('signoSolar', '?')}, Ascendente em {contexto.get('ascendente', '?')}, Meio do Céu em {contexto.get('meioCeu', '?')}. Conecte com o dia.",
-        'planetas_pessoais': f"Explore Vênus ({contexto.get('venusSigno', '?')}) para amor/valores e Marte ({contexto.get('marteSigno', '?')}) para ação/energia. Conecte com o momento.",
-        'perfil_comportamental': f"Use o perfil comportamental de {nome} ({perfil_comp['nome'] if perfil_comp else '?'}) como fio condutor. Conecte o lema '{perfil_comp['lema'] if perfil_comp else ''}' com a energia do dia.",
-        'profissao_vida': f"Considere a profissão de {nome} ({contexto.get('profissao', 'não informada')}) e traga um micro-momento do cotidiano (café da manhã, espelho, primeiro passo) como metáfora.",
-        'reflexao_metafora': f"Crie uma reflexão existencial usando uma metáfora criativa e original. Considere que estamos na estação {estacao['nome']} ({estacao['energia']}).",
-        'aniversario': f"Hoje é aniversário de {nome}! Celebre de forma especial, significativa e conectada com o mapa astral.",
-    }
-
-    instrucao_fonte = instrucoes_fonte.get(fonte, 'Use abordagem criativa e variada.')
+    hierarquia_str = '\n'.join(f"{i+1}. {p}" for i, p in enumerate(prioridade))
 
     expressoes = '\n'.join(f'- "{e}"' for e in EXPRESSOES_BLOQUEADAS)
 
-    # ===== PROMPT FINAL =====
-    prompt = f"""# GERADOR DE MENSAGEM INSPIRACIONAL v{PROMPT_VERSION}
+    # ===== PROMPT FINAL v6.0 =====
+    prompt = f"""# MOTOR DE ENGENHARIA EMOCIONAL v{PROMPT_VERSION}
 
-## MODO: {tipo.upper()}
-{contexto_bloco}
+Você vai gerar uma mensagem com 4 CAMADAS obrigatórias.
+Cada camada tem um papel psicológico específico.
 
-## DATA E CONTEXTO TEMPORAL
-- Data: {data_formatada}
-- Dia da Semana: {dia_semana['nome']} (Planeta regente: {dia_semana['planeta']})
-- Energia do dia: {dia_semana['energia']}
-- Estação: {estacao['nome']} ({estacao['energia']})
-
-{lua_bloco}
-{cruzamento_bloco}
+{camada1_bloco}
+{camada2_bloco}
+{camada3_bloco}
 {perfil_bloco}
 
-## 🎯 FONTE DE INSPIRAÇÃO: {fonte.upper().replace('_', ' ')}
-{instrucao_fonte}
+## 📊 HIERARQUIA DE PRIORIDADE (respeite esta ordem)
+{hierarquia_str}
 
-## 🎭 TOM: {tom['nome'].upper()}
-Ajuste a linguagem e abordagem de acordo com este tom.
+## FONTE DE INSPIRAÇÃO: {fonte.upper().replace('_', ' ')}
 
-## ⚡ REGRAS OBRIGATÓRIAS v4.0
+## TOM: {tom['nome'].upper()}
+{tom.get('descricao', '')}
 
-### ❌ NUNCA faça:
+## ⚡ AS 4 CAMADAS OBRIGATÓRIAS
+
+### CAMADA A — ESPELHO ("Eu sei quem você é")
+Mostre que você CONHECE {nome}. Use identidade, não dados.
+Não diga "seu sol em Leão". Diga "sua natureza de liderança".
+Não diga "sua lua em Câncer". Diga "essa sensibilidade que você carrega".
+Traduza astrologia em identidade humana.
+
+### CAMADA B — TENSÃO DO DIA (conflito que gera crescimento)
+Crie um pequeno dilema real baseado em:
+- Fase lunar ativa emoções
+- Dia da semana pede {tema_dia['foco']}
+- Fase de vida ({arquetipo['nome']}) traz desafios específicos
+Exemplo de tensão: "você pode reagir no impulso ou usar sua inteligência emocional."
+Sem tensão não há crescimento.
+
+### CAMADA C — DIREÇÃO PRÁTICA (micro-ação clara)
+Uma ação ESPECÍFICA para hoje. Não genérica.
+Bom: "hoje resolva aquela conversa que você vem adiando. seja objetivo. sem drama."
+Ruim: "cuide de si hoje" / "reflita sobre sua vida"
+Isso transforma o app em ferramenta, não entretenimento.
+
+### CAMADA D — FRASE DE IDENTIDADE (reforço de quem está se tornando)
+Última linha no campo "frase". Reafirma quem {nome} está se tornando.
+Bom: "você não nasceu para se adaptar. nasceu para liderar com consciência."
+Ruim: "tenha um bom dia" / "tudo vai dar certo"
+Identidade é mais forte que motivação.
+
+## ❌ NUNCA faça:
 {expressoes}
-- NUNCA comece a mensagem com "Você, hoje, ..." — VARIE a abertura!
-- NUNCA comece com "{nome}, hoje..." em TODAS as mensagens — varie!
+- NUNCA use jargão astrológico exposto ("seu sol em Leão diz que...")
+- NUNCA entregue previsões ("algo difícil vai acontecer")
+- NUNCA comece com "{nome}, hoje..." — VARIE!
+- NUNCA seja genérico disfarçado de personalização
 - NUNCA use estrutura repetitiva
+- NUNCA pareça algoritmo — precisa soar orgânico e íntimo
 
-### ✅ COMO ESCREVER:
-- Fale diretamente para {nome}, como alguém que a conhece profundamente
-- Varie SEMPRE a abertura. Exemplos de aberturas variadas:
-  • Comece com uma pergunta reflexiva
-  • Comece com a energia do dia/lua
-  • Comece com uma metáfora da estação
-  • Comece com um insight astrológico
-  • Comece com o nome + algo inesperado
-  • Comece pelo perfil comportamental ou elemento pessoal
-- A pessoa deve sentir que a mensagem foi escrita PARA ELA
-- Ajude-a a se PREPARAR para o dia, com insights práticos e emocionais
-- Integre os elementos astrológicos de forma natural (não como lista de dados)
-- Se o perfil comportamental estiver disponível, adapte sutilmente a abordagem ao estilo da pessoa
-- Seja um guia sábio que conhece os astros E conhece a pessoa
-
-### 🔮 OBRIGATÓRIO — INTEGRE PELO MENOS 2 DESTES:
-1. A fase/signo da lua do dia
-2. Um elemento do mapa astral da pessoa (Sol, Lua, ASC, planetas)
-3. A energia do dia da semana / planeta regente
-4. A estação do ano e como ela influencia o momento
-5. Um aspecto pessoal (profissão, estado civil, filhos, perfil comportamental)
+## ✅ COMO ESCREVER:
+- Linguagem humana, conflito interno, afirmação de potência, leve poesia
+- Fale como mentor lúcido, não como horóscopo
+- Sempre: consciência + escolha ("você pode X ou Y")
+- A pessoa deve sentir que é ÚNICA, tem um CAMINHO e está EVOLUINDO
+- Varie SEMPRE a abertura (pergunta, metáfora, insight, conflito, nome)
 
 ## OUTPUT
 Responda APENAS com JSON válido, sem texto adicional:
 {{
-  "html": "<p>...</p><br><p>...</p>",
-  "frase": "..."
+  "espelho": "1-2 frases. Reconhecimento de identidade. Traduz astrologia em humanidade.",
+  "tensao": "1-2 frases. Dilema do dia. Conflito real que gera crescimento.",
+  "direcao": "1 frase. Micro-ação clara e específica para hoje.",
+  "frase_identidade": "1 frase curta. Reforço de quem a pessoa está se tornando. Sem emoji."
 }}
 
-Regras do HTML:
-- Use <p>, <br>, <strong>, <em>
-- 2-3 parágrafos (6-10 linhas total) — pode ser mais rico que antes
-- 1-2 emojis estratégicos e contextuais (lua, estrela, fogo, etc)
-- O último parágrafo deve ter uma orientação prática ou reflexão de encerramento
-
-Regras da Frase (exibida como destaque visual na tela):
-- Frase curta e impactante (1-2 linhas)
-- Sem emojis na frase
-- Pode usar <strong> ou <em>
-- Deve funcionar como um "mantra do dia" ou insight memorável"""
+Regras:
+- ESPELHO + TENSÃO + DIREÇÃO vão virar HTML de corpo da mensagem
+- FRASE_IDENTIDADE vira destaque visual separado (mantra do dia)
+- Total das 3 primeiras camadas: 5-8 linhas
+- 1-2 emojis estratégicos APENAS no espelho ou tensão
+- Frase_identidade: ZERO emojis, pode usar <strong> ou <em>"""
 
     return prompt
 
@@ -733,7 +784,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
     # ===== DADOS ASTRONÔMICOS (via Kerykeion) =====
     lua = _obter_dados_astronomicos()
 
-    # ===== DADOS ENRIQUECIDOS v5.0 =====
+    # ===== DADOS ENRIQUECIDOS v6.0 =====
     cruzamento_lunar = _cruzamento_lua_dia_natal(
         lua.get('signo', ''),
         contexto.get('signoLunar')
@@ -742,7 +793,6 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
     perfil_comp = None
     if tipo == 'personalizada' and user_id:
         perfil_comp = _obter_perfil_comportamental(sb, user_id)
-        # Marcar no contexto para que o fallback inteligente saiba
         if perfil_comp:
             contexto['_perfilComportamental'] = perfil_comp
 
@@ -772,7 +822,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         }
         modelo_usado = GROQ_MODEL
 
-    logger.info(f"[MensagemDia v5.0] Gerando para user={user_id}, tipo={tipo}, fonte={fonte}, tom={tom['id']}, provider={llm_config['provider']}")
+    logger.info(f"[MensagemDia v6.0] Gerando para user={user_id}, tipo={tipo}, fonte={fonte}, tom={tom['id']}, provider={llm_config['provider']}")
 
     gateway = LLMGateway.get_instance()
     start_time = datetime.now(pytz.utc)
@@ -785,7 +835,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
 
     tempo_ms = int((datetime.now(pytz.utc) - start_time).total_seconds() * 1000)
 
-    # Parse JSON do LLM
+    # Parse JSON do LLM — v6.0 converte 4 camadas → {html, frase}
     try:
         content = raw_content.strip()
         if content.startswith('```'):
@@ -795,12 +845,27 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
     except json.JSONDecodeError:
         logger.error(f"[MensagemDia] JSON inválido do LLM: {raw_content[:200]}")
         parsed = {
-            'html': f'<p>{raw_content[:500]}</p>',
-            'frase': raw_content[:200] if len(raw_content) <= 200 else raw_content[:200] + '...'
+            'espelho': raw_content[:300],
+            'tensao': '',
+            'direcao': '',
+            'frase_identidade': ''
         }
 
-    html = parsed.get('html', '')
-    frase = parsed.get('frase', '')
+    # Montar HTML a partir das 4 camadas (ou fallback para formato antigo)
+    if 'espelho' in parsed:
+        partes = []
+        if parsed.get('espelho'):
+            partes.append(f"<p>{parsed['espelho']}</p>")
+        if parsed.get('tensao'):
+            partes.append(f"<p>{parsed['tensao']}</p>")
+        if parsed.get('direcao'):
+            partes.append(f"<p><strong>{parsed['direcao']}</strong></p>")
+        html = '<br>'.join(partes)
+        frase = parsed.get('frase_identidade', '')
+    else:
+        # Fallback para formato antigo (html + frase)
+        html = parsed.get('html', '')
+        frase = parsed.get('frase', '')
 
     if not html:
         raise HTTPException(status_code=500, detail="LLM não retornou conteúdo")
@@ -822,6 +887,8 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                 'luaSigno': lua['signo'],
                 'isTransicao': lua['isTransicao'],
                 'diaSemana': _get_dia_semana(data_atual)['nome'],
+                'temaDia': TEMAS_SEMANA[data_atual.weekday()]['tema'],
+                'arquetipo': _obter_arquetipo_fase(contexto.get('idade'))['nome'],
                 'fonte': fonte,
                 'tom': tom['id'],
                 'cruzamentoLunar': cruzamento_lunar is not None,
@@ -842,7 +909,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         if save_resp.data:
             saved_id = save_resp.data[0].get('id')
 
-        logger.info(f"[MensagemDia v5.0] ✓ Salva com sucesso para user={user_id} (fonte={fonte}, tom={tom['id']})")
+        logger.info(f"[MensagemDia v6.0] ✓ Salva com sucesso para user={user_id} (fonte={fonte}, tom={tom['id']})")
     except Exception as e:
         logger.error(f"[MensagemDia] Erro ao salvar: {e}")
 
