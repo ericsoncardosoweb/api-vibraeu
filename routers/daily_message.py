@@ -13,6 +13,7 @@ Endpoints:
 
 import json
 import random
+import re
 import pytz
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
@@ -383,7 +384,28 @@ def _obter_arquetipo_fase(idade: Optional[int]) -> Dict[str, str]:
 
 
 # ============================================================================
-# SELEÇÃO DE FONTE E TOM v5.0
+# HISTÓRICO E ANTI-REPETIÇÃO v6.1
+# ============================================================================
+
+def _buscar_historico_recente(sb, user_id: Optional[str], dias: int = 3) -> List[Dict[str, Any]]:
+    """Busca últimas N mensagens do usuário para evitar repetição."""
+    if not user_id:
+        return []
+    try:
+        resp = sb.client.table('mensagens_do_dia') \
+            .select('html, frase, fonte_inspiracao, tom, data_referencia') \
+            .eq('user_id', user_id) \
+            .order('data_referencia', desc=True) \
+            .limit(dias) \
+            .execute()
+        return resp.data or []
+    except Exception as e:
+        logger.warning(f"[MensagemDia] Erro ao buscar histórico: {e}")
+        return []
+
+
+# ============================================================================
+# SELEÇÃO DE FONTE E TOM v6.1
 # ============================================================================
 
 def _filtrar_fontes_disponiveis(contexto: Dict[str, Any]) -> List[str]:
@@ -398,8 +420,8 @@ def _filtrar_fontes_disponiveis(contexto: Dict[str, Any]) -> List[str]:
     return disponiveis
 
 
-def _selecionar_fonte(contexto: Dict[str, Any], lua: Dict, data_nascimento: Optional[str], data_atual: datetime) -> str:
-    """Seleciona fonte com fallback inteligente — só oferece fontes com dados."""
+def _selecionar_fonte(contexto: Dict[str, Any], lua: Dict, data_nascimento: Optional[str], data_atual: datetime, fontes_anteriores: Optional[List[str]] = None) -> str:
+    """Seleciona fonte com fallback inteligente — evita fontes já usadas recentemente."""
     if _is_aniversario(data_nascimento, data_atual):
         return 'aniversario'
 
@@ -410,6 +432,12 @@ def _selecionar_fonte(contexto: Dict[str, Any], lua: Dict, data_nascimento: Opti
     # Boost para fase_lua quando há transição
     if lua.get('isTransicao') and 'fase_lua' in disponiveis:
         disponiveis.append('fase_lua')  # dobra a chance
+
+    # v6.1: excluir fontes usadas ontem (se possível)
+    if fontes_anteriores:
+        diversificadas = [f for f in disponiveis if f not in fontes_anteriores]
+        if diversificadas:
+            disponiveis = diversificadas
 
     return random.choice(disponiveis)
 
@@ -441,7 +469,8 @@ def _montar_prompt(
     data_atual: datetime,
     tipo: str,  # 'personalizada' | 'generica'
     cruzamento_lunar: Optional[str],
-    perfil_comp: Optional[Dict[str, Any]]
+    perfil_comp: Optional[Dict[str, Any]],
+    historico: Optional[List[Dict[str, Any]]] = None
 ) -> str:
     dia_semana = _get_dia_semana(data_atual)
     tema_dia = TEMAS_SEMANA[data_atual.weekday()]
@@ -557,7 +586,33 @@ Foque na energia do dia e no contexto temporal.
 
     expressoes = '\n'.join(f'- "{e}"' for e in EXPRESSOES_BLOQUEADAS)
 
-    # ===== PROMPT FINAL v6.0 =====
+    # ===== v6.1: BLOCO ANTI-REPETIÇÃO =====
+    historico_bloco = ''
+    if historico:
+        frases_anteriores = []
+        for msg in historico[:3]:
+            # Extrair texto limpo do HTML (remover tags)
+            html_ant = msg.get('html', '')
+            texto = re.sub(r'<[^>]+>', ' ', html_ant).strip()
+            if texto and len(texto) > 20:
+                # Pegar primeiras 80 chars como fingerprint
+                frases_anteriores.append(texto[:80].strip())
+            frase_ant = msg.get('frase', '')
+            if frase_ant:
+                frases_anteriores.append(frase_ant.strip())
+        
+        if frases_anteriores:
+            frases_str = '\n'.join(f'- "{f}"' for f in frases_anteriores)
+            historico_bloco = f"""
+## 🚫 MENSAGENS ANTERIORES — NÃO REPITA NADA SIMILAR
+As mensagens abaixo já foram enviadas nos dias anteriores.
+NÃO repita frases, estruturas, palavras-chave ou padrões semelhantes:
+{frases_str}
+Use abordagem COMPLETAMENTE DIFERENTE.
+
+"""
+
+    # ===== PROMPT FINAL v6.1 =====
     prompt = f"""# MOTOR DE ENGENHARIA EMOCIONAL v{PROMPT_VERSION}
 
 Você vai gerar uma mensagem com 4 CAMADAS obrigatórias.
@@ -580,43 +635,41 @@ Cada camada tem um papel psicológico específico.
 
 ### CAMADA A — ESPELHO ("Eu sei quem você é")
 Mostre que você CONHECE {nome}. Use identidade, não dados.
-Não diga "seu sol em Leão". Diga "sua natureza de liderança".
-Não diga "sua lua em Câncer". Diga "essa sensibilidade que você carrega".
-Traduza astrologia em identidade humana.
+Traduza astrologia em identidade humana (nunca exponha termos técnicos).
+Abordagens possíveis: força silenciosa, intensidade contida, sensibilidade como poder, instinto estratégico.
 
 ### CAMADA B — TENSÃO DO DIA (conflito que gera crescimento)
-Crie um pequeno dilema real baseado em:
-- Fase lunar ativa emoções
-- Dia da semana pede {tema_dia['foco']}
-- Fase de vida ({arquetipo['nome']}) traz desafios específicos
-Exemplo de tensão: "você pode reagir no impulso ou usar sua inteligência emocional."
+Crie um pequeno dilema ORIGINAL baseado em:
+- Fase lunar + emoções do momento
+- Tema do dia: {tema_dia['foco']}
+- Fase de vida ({arquetipo['nome']}): desafios concretos
+O dilema deve ser NOVO a cada dia. Use situações cotidianas variadas.
 Sem tensão não há crescimento.
 
 ### CAMADA C — DIREÇÃO PRÁTICA (micro-ação clara)
-Uma ação ESPECÍFICA para hoje. Não genérica.
-Bom: "hoje resolva aquela conversa que você vem adiando. seja objetivo. sem drama."
-Ruim: "cuide de si hoje" / "reflita sobre sua vida"
-Isso transforma o app em ferramenta, não entretenimento.
+Uma ação ESPECÍFICA e ORIGINAL para hoje. Nunca genérica.
+Deve variar entre: comunicação, organização, coragem, descanso, confronto, criatividade, escuta.
+Ruim: "cuide de si" / "reflita sobre sua vida" / "resolva aquela conversa"
 
 ### CAMADA D — FRASE DE IDENTIDADE (reforço de quem está se tornando)
-Última linha no campo "frase". Reafirma quem {nome} está se tornando.
-Bom: "você não nasceu para se adaptar. nasceu para liderar com consciência."
+Reafirma quem {nome} está se tornando. Curta, poderosa, sem emoji.
+Deve ser ÚNICA a cada dia — nunca repita padrões.
 Ruim: "tenha um bom dia" / "tudo vai dar certo"
-Identidade é mais forte que motivação.
-
+{historico_bloco}
 ## ❌ NUNCA faça:
 {expressoes}
-- NUNCA use jargão astrológico exposto ("seu sol em Leão diz que...")
-- NUNCA entregue previsões ("algo difícil vai acontecer")
+- NUNCA use jargão astrológico exposto
+- NUNCA entregue previsões
 - NUNCA comece com "{nome}, hoje..." — VARIE!
 - NUNCA seja genérico disfarçado de personalização
-- NUNCA use estrutura repetitiva
+- NUNCA repita estrutura ou frases de dias anteriores
 - NUNCA pareça algoritmo — precisa soar orgânico e íntimo
+- NUNCA use as mesmas palavras-chave de dias anteriores
 
 ## ✅ COMO ESCREVER:
 - Linguagem humana, conflito interno, afirmação de potência, leve poesia
 - Fale como mentor lúcido, não como horóscopo
-- Sempre: consciência + escolha ("você pode X ou Y")
+- Varie: consciência, escolha, coragem, silêncio, movimento, verdade
 - A pessoa deve sentir que é ÚNICA, tem um CAMINHO e está EVOLUINDO
 - Varie SEMPRE a abertura (pergunta, metáfora, insight, conflito, nome)
 
@@ -796,9 +849,13 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         if perfil_comp:
             contexto['_perfilComportamental'] = perfil_comp
 
-    fonte = _selecionar_fonte(contexto, lua, contexto.get('dataNascimento'), data_atual)
+    # ===== v6.1: HISTÓRICO ANTI-REPETIÇÃO =====
+    historico = _buscar_historico_recente(sb, user_id, dias=3)
+    fontes_anteriores = [m.get('fonte_inspiracao') for m in historico if m.get('fonte_inspiracao')]
+
+    fonte = _selecionar_fonte(contexto, lua, contexto.get('dataNascimento'), data_atual, fontes_anteriores)
     tom = _selecionar_tom(lua)
-    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, cruzamento_lunar, perfil_comp)
+    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, cruzamento_lunar, perfil_comp, historico)
 
     # ===== CHAMAR LLM COM REGRA POR PLANO =====
     if is_pago:
