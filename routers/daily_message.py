@@ -151,6 +151,19 @@ ARQUETIPOS_FASE_VIDA = [
     {'faixa': (46, 999), 'nome': 'Reinvenção', 'foco': 'sabedoria, transição, profundidade, liberdade consciente'},
 ]
 
+# Mapeamento de abreviações do Kerykeion para nomes completos em português
+SIGNO_NOME = {
+    'Ari': 'Áries', 'Tau': 'Touro', 'Gem': 'Gêmeos', 'Can': 'Câncer',
+    'Leo': 'Leão', 'Vir': 'Virgem', 'Lib': 'Libra', 'Sco': 'Escorpião',
+    'Sag': 'Sagitário', 'Cap': 'Capricórnio', 'Aqu': 'Aquário', 'Pis': 'Peixes'
+}
+
+def _traduzir_signo(signo: Optional[str]) -> Optional[str]:
+    """Traduz abreviação do Kerykeion (Ari, Tau...) para nome completo em português."""
+    if not signo or signo == 'não informado':
+        return signo
+    return SIGNO_NOME.get(signo, signo)  # fallback: retorna o próprio valor
+
 # Mapeamento de signos para elementos
 ELEMENTOS_POR_SIGNO = {
     'Áries': 'Fogo', 'Touro': 'Terra', 'Gêmeos': 'Ar', 'Câncer': 'Água',
@@ -259,7 +272,7 @@ def _obter_dados_astronomicos() -> Dict[str, Any]:
             return {
                 'fase': fase_lua.get('nome', 'Crescente'),
                 'faseSimplificada': fase_simpl,
-                'signo': fase_lua.get('lua_signo', 'Áries'),
+                'signo': _traduzir_signo(fase_lua.get('lua_signo')) or 'Áries',
                 'iluminacao': iluminacao,
                 'isTransicao': is_transicao,
                 'emoji': fase_lua.get('emoji', '🌙'),
@@ -759,18 +772,19 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                         pass
 
                 # Extrair signo solar — tentar múltiplos campos
-                signo_solar = mac.get('sol_signo') or mac.get('signo_solar') or 'não informado'
+                # _traduzir_signo converte abreviações do Kerykeion (Ari→Áries, Tau→Touro, etc.)
+                signo_solar = _traduzir_signo(mac.get('sol_signo') or mac.get('signo_solar')) or 'não informado'
 
                 contexto = {
                     'nome': profile.get('nickname') or (profile.get('name', '').split(' ')[0] if profile.get('name') else 'Você'),
                     'signoSolar': signo_solar,
-                    'signoLunar': mac.get('lua_signo') or mac.get('signo_lunar'),
-                    'ascendente': mac.get('ascendente') or mac.get('ascendente_signo'),
-                    'meioCeu': mac.get('meio_ceu') or mac.get('mc_signo'),
+                    'signoLunar': _traduzir_signo(mac.get('lua_signo') or mac.get('signo_lunar')),
+                    'ascendente': _traduzir_signo(mac.get('ascendente') or mac.get('ascendente_signo')),
+                    'meioCeu': _traduzir_signo(mac.get('meio_ceu') or mac.get('mc_signo')),
                     'elementoSolar': mac.get('elemento_dominante') or _obter_elemento(signo_solar),
-                    'venusSigno': mac.get('venus_signo'),
-                    'marteSigno': mac.get('marte_signo'),
-                    'mercurioSigno': mac.get('mercurio_signo'),
+                    'venusSigno': _traduzir_signo(mac.get('venus_signo')),
+                    'marteSigno': _traduzir_signo(mac.get('marte_signo')),
+                    'mercurioSigno': _traduzir_signo(mac.get('mercurio_signo')),
                     'estadoCivil': profile.get('estado_civil'),
                     'temFilhos': profile.get('tem_filhos'),
                     'dataNascimento': data_nasc,

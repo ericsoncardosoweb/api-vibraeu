@@ -74,6 +74,10 @@ SIGNOS_MAP = {
     "capricornio": "capricornio", "capricórnio": "capricornio", "capricorn": "capricornio",
     "aquario": "aquario", "aquário": "aquario", "aquarius": "aquario",
     "peixes": "peixes", "pisces": "peixes",
+    # Abreviações do Kerykeion
+    "ari": "aries", "tau": "touro", "gem": "gemeos", "can": "cancer",
+    "vir": "virgem", "lib": "libra", "sco": "escorpiao",
+    "sag": "sagitario", "cap": "capricornio", "aqu": "aquario", "pis": "peixes",
 }
 
 def normalize_signo(signo: str) -> str:

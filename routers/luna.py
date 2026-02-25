@@ -17,6 +17,19 @@ from services.supabase_client import get_supabase_client
 
 router = APIRouter()
 
+# Mapeamento de abreviações do Kerykeion para nomes completos em português
+SIGNO_NOME = {
+    'Ari': 'Áries', 'Tau': 'Touro', 'Gem': 'Gêmeos', 'Can': 'Câncer',
+    'Leo': 'Leão', 'Vir': 'Virgem', 'Lib': 'Libra', 'Sco': 'Escorpião',
+    'Sag': 'Sagitário', 'Cap': 'Capricórnio', 'Aqu': 'Aquário', 'Pis': 'Peixes'
+}
+
+def _traduzir_signo(signo):
+    """Traduz abreviação do Kerykeion (Ari, Tau...) para nome completo em português."""
+    if not signo:
+        return signo
+    return SIGNO_NOME.get(signo, signo)
+
 
 # =============================================
 # MODELS
@@ -420,11 +433,11 @@ async def generate_bio(request: GenerateBioRequest):
         
         ctx_astral = []
         if mac.get("sol_signo"):
-            ctx_astral.append(f"Sol em {mac['sol_signo']}")
+            ctx_astral.append(f"Sol em {_traduzir_signo(mac['sol_signo'])}")
         if mac.get("lua_signo"):
-            ctx_astral.append(f"Lua em {mac['lua_signo']}")
+            ctx_astral.append(f"Lua em {_traduzir_signo(mac['lua_signo'])}")
         if mac.get("ascendente_signo"):
-            ctx_astral.append(f"Ascendente em {mac['ascendente_signo']}")
+            ctx_astral.append(f"Ascendente em {_traduzir_signo(mac['ascendente_signo'])}")
         
         # json já importado no topo do arquivo
         
