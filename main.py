@@ -30,6 +30,7 @@ from routers import daily_message
 from routers import compatibility
 from routers import monthly_reports
 from routers import alinhamento
+from routers import disc
 from scheduler.jobs import start_scheduler, shutdown_scheduler
 from middleware.auth import verify_api_key
 
@@ -304,6 +305,16 @@ app.include_router(
 app.include_router(
     alinhamento.router, 
     tags=["Alinhamento Insights"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+# ============================================================================
+# Rotas DISC — Análise Comportamental (Interferência, Sombra, Potência)
+# Protegidas por API key
+# ============================================================================
+app.include_router(
+    disc.router, 
+    tags=["DISC Analysis"],
     dependencies=[Depends(verify_api_key)]
 )
 
