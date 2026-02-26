@@ -415,6 +415,7 @@ async def create_subscription(req: CreateSubscriptionRequest):
         _, _, is_sandbox = _get_asaas_config()
         supabase = _get_supabase()
         if supabase and result.get("id"):
+            # 1. Sync assinatura na tabela assinaturas
             try:
                 supabase.table("assinaturas").upsert({
                     "user_id": req.userId,
@@ -430,16 +431,21 @@ async def create_subscription(req: CreateSubscriptionRequest):
                     "is_sandbox": is_sandbox,
                     "updated_at": datetime.utcnow().isoformat(),
                 }, on_conflict="user_id").execute()
-                
-                # Se ativa (cartÃ£o), atualizar profile
-                if result.get("status") == "ACTIVE":
+                logger.info(f"[Asaas] ✅ Assinatura {result['id']} salva para user {req.userId}")
+            except Exception as e:
+                logger.warning(f"[Asaas] Sync assinaturas failed (non-blocking): {e}")
+            
+            # 2. Atualizar plano no perfil do usuÃ¡rio (SEMPRE, independente do upsert acima)
+            if result.get("status") == "ACTIVE":
+                try:
                     supabase.table("profiles").update({
                         "plano": req.planCode,
                         "subscription_status": "active",
                         "updated_at": datetime.utcnow().isoformat(),
                     }).eq("id", req.userId).execute()
-            except Exception as e:
-                logger.warning(f"[Asaas] Sync subscription failed: {e}")
+                    logger.info(f"[Asaas] ✅ Profile {req.userId} atualizado para plano {req.planCode}")
+                except Exception as e:
+                    logger.error(f"[Asaas] ❌ FALHA ao atualizar profile: {e}")
         
         return result
         
