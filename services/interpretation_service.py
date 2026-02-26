@@ -359,7 +359,7 @@ class InterpretationService:
             Link para a página correspondente
         """
         module_links = {
-            "Mapa Astral": "https://app.vibraeu.com.br/meu-mac/mapa",
+            "Mapa Astral": "https://app.vibraeu.com.br/mac-interpretacoes",
             "Vibrações": "https://app.vibraeu.com.br/vibracoes",
             "Perfil Comportamental": "https://app.vibraeu.com.br/perfil-comportamental",
             "Roda da Vida": "https://app.vibraeu.com.br/roda-da-vida",
@@ -372,4 +372,4 @@ class InterpretationService:
             "Geral (Sistema)": "https://app.vibraeu.com.br/",
         }
         
-        return module_links.get(module_relation, "https://app.vibraeu.com.br/meu-mac/mapa")
+        return module_links.get(module_relation, "https://app.vibraeu.com.br/mac-interpretacoes")
