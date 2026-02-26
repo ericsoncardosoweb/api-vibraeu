@@ -186,6 +186,12 @@ app.include_router(
     dependencies=[Depends(verify_api_key)]
 )
 
+# Webhook Asaas — SEM API key (Asaas envia asaas-access-token próprio)
+app.include_router(
+    payments.webhook_router, 
+    tags=["Payments Webhook"]
+)
+
 # ============================================================================
 # Rotas de Mensageria (WhatsApp + Email)
 # Protegidas por API key

@@ -20,6 +20,25 @@ from loguru import logger
 from services.supabase_client import SupabaseService
 
 
+# Mapeamento de abreviações do Kerykeion para nomes completos em português
+SIGNOS_PT = {
+    'Ari': 'Áries', 'Tau': 'Touro', 'Gem': 'Gêmeos', 'Can': 'Câncer',
+    'Leo': 'Leão', 'Vir': 'Virgem', 'Lib': 'Libra', 'Sco': 'Escorpião',
+    'Sag': 'Sagitário', 'Cap': 'Capricórnio', 'Aqu': 'Aquário', 'Pis': 'Peixes',
+    # Nomes em inglês (fallback)
+    'Aries': 'Áries', 'Taurus': 'Touro', 'Gemini': 'Gêmeos', 'Cancer': 'Câncer',
+    'Leo': 'Leão', 'Virgo': 'Virgem', 'Libra': 'Libra', 'Scorpio': 'Escorpião',
+    'Sagittarius': 'Sagitário', 'Capricorn': 'Capricórnio', 'Aquarius': 'Aquário', 'Pisces': 'Peixes',
+}
+
+
+def _traduzir_signo(signo: str) -> str:
+    """Traduz abreviação ou nome em inglês do signo para português completo."""
+    if not signo:
+        return signo
+    return SIGNOS_PT.get(signo, signo)
+
+
 class AIMSEngine:
     """Engine for processing AIMS interpretation queue."""
     
@@ -256,7 +275,7 @@ class AIMSEngine:
             "mac": {
                 "full": json.dumps(mac_data, ensure_ascii=False, default=str) if mac_data else "{}",
             },
-            # Quiz Onboarding variables
+            # Quiz Onboarding variables (com fallback para profiles)
             "quiz": {
                 "full": json.dumps(quiz_data, ensure_ascii=False, default=str) if quiz_data else "{}",
                 "sentimento": quiz_data.get("sentimento_vida", ""),
@@ -265,9 +284,9 @@ class AIMSEngine:
                 "bloqueio": quiz_data.get("bloqueio", ""),
                 "metas": quiz_data.get("metas_definidas", ""),
                 "score": str(quiz_data.get("score_alinhamento", "")),
-                "profissao": quiz_data.get("profissao", ""),
-                "estado_civil": quiz_data.get("estado_civil", ""),
-                "tem_filhos": quiz_data.get("tem_filhos", ""),
+                "profissao": quiz_data.get("profissao", "") or user_data.get("profissao", ""),
+                "estado_civil": quiz_data.get("estado_civil", "") or user_data.get("estado_civil", ""),
+                "tem_filhos": quiz_data.get("tem_filhos", "") or user_data.get("tem_filhos", ""),
             },
             # Context variables
             "context": {
@@ -280,14 +299,15 @@ class AIMSEngine:
         # Add individual MAC fields if available
         if mac_data:
             context["mac"].update({
-                "sun": mac_data.get("sol_signo", ""),
-                "sun_sign": mac_data.get("sol_signo", ""),
-                "moon": mac_data.get("lua_signo", ""),
-                "moon_sign": mac_data.get("lua_signo", ""),
-                "ascendant": mac_data.get("ascendente_signo", ""),
-                "ascendant_sign": mac_data.get("ascendente_signo", ""),
-                "mc": mac_data.get("mc_signo", ""),
-                "mc_sign": mac_data.get("mc_signo", ""),
+                "sun": _traduzir_signo(mac_data.get("sol_signo", "")),
+                "sun_sign": _traduzir_signo(mac_data.get("sol_signo", "")),
+                "moon": _traduzir_signo(mac_data.get("lua_signo", "")),
+                "moon_sign": _traduzir_signo(mac_data.get("lua_signo", "")),
+                "ascendant": _traduzir_signo(mac_data.get("ascendente_signo", "")),
+                "ascendant_sign": _traduzir_signo(mac_data.get("ascendente_signo", "")),
+                "mc": _traduzir_signo(mac_data.get("mc_signo", "")),
+                "mc_sign": _traduzir_signo(mac_data.get("mc_signo", "")),
+                "midheaven": _traduzir_signo(mac_data.get("mc_signo", "")),
             })
             
             # Add planetary data
@@ -322,25 +342,31 @@ class AIMSEngine:
                     if planet_name:
                         # Use clean alias if available, fallback to raw name
                         clean_name = PLANET_NAME_ALIASES.get(planet_name, planet_name)
-                        context["mac"][clean_name] = planeta.get("signo", "")
+                        context["mac"][clean_name] = _traduzir_signo(planeta.get("signo", ""))
                         context["mac"][f"{clean_name}_full"] = json.dumps(planeta, ensure_ascii=False)
                         # Also keep original raw name for backward compatibility
                         if clean_name != planet_name:
-                            context["mac"][planet_name] = planeta.get("signo", "")
+                            context["mac"][planet_name] = _traduzir_signo(planeta.get("signo", ""))
                 
                 # Derive South Node from North Node if not explicitly present
                 north_node_sign = context["mac"].get("north_node", "")
                 if north_node_sign and not context["mac"].get("south_node"):
                     # South Node is always opposite sign of North Node
                     OPPOSITE_SIGNS = {
-                        "Aries": "Libra", "Libra": "Aries",
-                        "Taurus": "Scorpio", "Scorpio": "Taurus",
+                        "Áries": "Libra", "Libra": "Áries",
+                        "Touro": "Escorpião", "Escorpião": "Touro",
+                        "Gêmeos": "Sagitário", "Sagitário": "Gêmeos",
+                        "Câncer": "Capricórnio", "Capricórnio": "Câncer",
+                        "Leão": "Aquário", "Aquário": "Leão",
+                        "Virgem": "Peixes", "Peixes": "Virgem",
+                        # Fallback inglês
+                        "Aries": "Libra", "Taurus": "Scorpio", "Scorpio": "Taurus",
                         "Gemini": "Sagittarius", "Sagittarius": "Gemini",
                         "Cancer": "Capricorn", "Capricorn": "Cancer",
                         "Leo": "Aquarius", "Aquarius": "Leo",
                         "Virgo": "Pisces", "Pisces": "Virgo"
                     }
-                    context["mac"]["south_node"] = OPPOSITE_SIGNS.get(north_node_sign, "")
+                    context["mac"]["south_node"] = _traduzir_signo(OPPOSITE_SIGNS.get(north_node_sign, ""))
         
         return context
     
@@ -515,7 +541,7 @@ class AIMSEngine:
                 if isinstance(value, (dict, list)):
                     return json.dumps(value, ensure_ascii=False, default=str)
                 
-                return str(value) if value else match.group(0)
+                return str(value) if value is not None else match.group(0)
                 
             except Exception as e:
                 logger.warning(f"Error substituting variable {match.group(0)}: {e}")

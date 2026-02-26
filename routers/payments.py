@@ -19,6 +19,9 @@ from config import get_settings
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
+# Router separado para webhook (sem API key — Asaas não envia X-API-Key)
+webhook_router = APIRouter(prefix="/payments", tags=["payments-webhook"])
+
 # =============================================
 # PLANOS & CENTELHAS â€” DinÃ¢mico via Supabase
 # Cache TTL de 5 min para evitar queries repetidas
@@ -623,7 +626,7 @@ async def list_plans():
 # =============================================
 
 
-@router.post("/asaas/webhook")
+@webhook_router.post("/asaas/webhook")
 async def asaas_webhook(request: Request):
     """
     Webhook receiver para Asaas.
