@@ -253,16 +253,32 @@ class SupabaseService:
         Save/update interpretation data in user_infos_data.
         Uses upsert to update if exists, insert if not.
         
+        GUARD: Refuses to save NULL/empty metadata to prevent
+        overwriting existing good interpretations with empty data.
+        
         Args:
             user_id: User ID
             action: Action/slug (e.g., mac-sol, mac-lua)
-            metadata: Content to save
+            metadata: Content to save (must not be None/empty)
             
         Returns:
             Saved data or None on error
         """
         try:
             from datetime import datetime
+            
+            # ============================================================
+            # GUARD: Nunca sobrescrever dados existentes com metadata vazia
+            # ============================================================
+            if metadata is None:
+                logger.warning(f"[DB] ⚠ BLOCKED: save_user_info called with metadata=None for user={user_id}, action={action}. Skipping to protect existing data.")
+                return None
+            
+            if isinstance(metadata, str) and len(metadata.strip()) == 0:
+                logger.warning(f"[DB] ⚠ BLOCKED: save_user_info called with empty string metadata for user={user_id}, action={action}. Skipping to protect existing data.")
+                return None
+            
+            metadata_len = len(metadata) if isinstance(metadata, str) else len(str(metadata))
             
             data = {
                 "user_id": user_id,
@@ -271,7 +287,7 @@ class SupabaseService:
                 "updated_at": datetime.utcnow().isoformat()
             }
             
-            logger.info(f"[DB] Upserting user_infos_data: user_id={user_id}, action={action}")
+            logger.info(f"[DB] Upserting user_infos_data: user_id={user_id}, action={action}, metadata_len={metadata_len}")
             
             response = self.client.table("user_infos_data") \
                 .upsert(data, on_conflict="user_id,action") \

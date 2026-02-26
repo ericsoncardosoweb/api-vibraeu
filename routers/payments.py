@@ -1,6 +1,6 @@
-"""
-Payment Router — Proxy seguro para API Asaas
-Flow: Frontend → apiClient → Python API → Asaas
+﻿"""
+Payment Router â€” Proxy seguro para API Asaas
+Flow: Frontend â†’ apiClient â†’ Python API â†’ Asaas
 Valores dos planos definidos server-side, nunca no frontend.
 """
 
@@ -20,7 +20,7 @@ from config import get_settings
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 # =============================================
-# PLANOS & CENTELHAS — Dinâmico via Supabase
+# PLANOS & CENTELHAS â€” DinÃ¢mico via Supabase
 # Cache TTL de 5 min para evitar queries repetidas
 # =============================================
 
@@ -30,17 +30,17 @@ _plans_cache = {"data": None, "ts": 0}
 _centelhas_cache = {"data": None, "ts": 0}
 _CACHE_TTL = 300  # 5 minutos
 
-# Fallbacks hardcoded (só usados se Supabase indisponível)
+# Fallbacks hardcoded (sÃ³ usados se Supabase indisponÃ­vel)
 _PLANOS_FALLBACK = {
     "fluxo": {"valor_mensal": 37.90, "valor_anual": 379.00, "description": "Assinatura VibraEu Fluxo"},
-    "expansao": {"valor_mensal": 89.90, "valor_anual": 899.00, "description": "Assinatura VibraEu Expansão"},
+    "expansao": {"valor_mensal": 89.90, "valor_anual": 899.00, "description": "Assinatura VibraEu ExpansÃ£o"},
 }
 
 _CENTELHAS_FALLBACK = {
     "centelhas_5": {"quantidade": 5, "preco": 9.90, "descricao": "Pack Inicial - 5 Centelhas"},
-    "centelhas_20": {"quantidade": 20, "preco": 29.90, "descricao": "Pack Evolução - 20+5 Centelhas"},
-    "centelhas_40": {"quantidade": 40, "preco": 49.90, "descricao": "Pack Expansão - 40+10 Centelhas"},
-    "centelhas_60": {"quantidade": 60, "preco": 79.90, "descricao": "Pack Iluminação - 60+15 Centelhas"},
+    "centelhas_20": {"quantidade": 20, "preco": 29.90, "descricao": "Pack EvoluÃ§Ã£o - 20+5 Centelhas"},
+    "centelhas_40": {"quantidade": 40, "preco": 49.90, "descricao": "Pack ExpansÃ£o - 40+10 Centelhas"},
+    "centelhas_60": {"quantidade": 60, "preco": 79.90, "descricao": "Pack IluminaÃ§Ã£o - 60+15 Centelhas"},
 }
 
 
@@ -62,7 +62,7 @@ def _get_planos() -> dict:
         planos = {}
         for p in result.data:
             if p["id"] == "semente":
-                continue  # Semente é grátis, não tem checkout
+                continue  # Semente Ã© grÃ¡tis, nÃ£o tem checkout
             planos[p["id"]] = {
                 "valor_mensal": float(p["preco_mensal"]),
                 "valor_anual": float(p["preco_anual"]) if p.get("preco_anual") else None,
@@ -207,7 +207,7 @@ def _get_asaas_config():
     
     if not api_key:
         env_name = "sandbox" if is_sandbox else "production"
-        raise HTTPException(status_code=500, detail=f"Asaas API key não configurada ({env_name})")
+        raise HTTPException(status_code=500, detail=f"Asaas API key nÃ£o configurada ({env_name})")
     
     return base_url, api_key, is_sandbox
 
@@ -235,7 +235,7 @@ async def _asaas_request(method: str, endpoint: str, data: dict = None) -> dict:
         elif method == "DELETE":
             resp = await client.delete(url, headers=headers)
         else:
-            raise HTTPException(400, f"Método {method} não suportado")
+            raise HTTPException(400, f"MÃ©todo {method} nÃ£o suportado")
     
     if not resp.is_success:
         try:
@@ -243,7 +243,7 @@ async def _asaas_request(method: str, endpoint: str, data: dict = None) -> dict:
             msg = error_data.get("errors", [{}])[0].get("description", f"Erro Asaas: {resp.status_code}")
         except Exception:
             msg = f"Erro Asaas: {resp.status_code}"
-        logger.error(f"[Asaas] {method} {endpoint} → {resp.status_code}: {msg}")
+        logger.error(f"[Asaas] {method} {endpoint} â†’ {resp.status_code}: {msg}")
         raise HTTPException(status_code=resp.status_code, detail=msg)
     
     return resp.json()
@@ -256,10 +256,10 @@ def _get_supabase():
 
 
 async def _user_owns_subscription(user_id: str, subscription_id: str) -> bool:
-    """Valida que a assinatura pertence ao usuário."""
+    """Valida que a assinatura pertence ao usuÃ¡rio."""
     supabase = _get_supabase()
     if not supabase:
-        return True  # Se Supabase indisponível, permitir (graceful degradation)
+        return True  # Se Supabase indisponÃ­vel, permitir (graceful degradation)
     result = supabase.table("assinaturas") \
         .select("id") \
         .eq("user_id", user_id) \
@@ -270,7 +270,7 @@ async def _user_owns_subscription(user_id: str, subscription_id: str) -> bool:
 
 
 async def _user_owns_payment(user_id: str, payment_id: str) -> bool:
-    """Valida que o pagamento pertence ao usuário."""
+    """Valida que o pagamento pertence ao usuÃ¡rio."""
     supabase = _get_supabase()
     if not supabase:
         return True
@@ -282,8 +282,8 @@ async def _user_owns_payment(user_id: str, payment_id: str) -> bool:
         .execute()
     if result.data:
         return True
-    # Pagamento pode ser recente e não sincronizado ainda
-    logger.warning(f"[Asaas] Propriedade do payment {payment_id} não confirmada, permitindo temporariamente")
+    # Pagamento pode ser recente e nÃ£o sincronizado ainda
+    logger.warning(f"[Asaas] Propriedade do payment {payment_id} nÃ£o confirmada, permitindo temporariamente")
     return True
 
 
@@ -356,15 +356,15 @@ async def create_subscription(req: CreateSubscriptionRequest):
     O frontend envia planCode, o servidor define o valor.
     """
     try:
-        # Buscar planos dinâmicos do banco
+        # Buscar planos dinÃ¢micos do banco
         planos = _get_planos()
         
         # Validar plano
         if req.planCode not in planos:
-            raise HTTPException(400, f"Plano '{req.planCode}' inválido. Válidos: {list(planos.keys())}")
+            raise HTTPException(400, f"Plano '{req.planCode}' invÃ¡lido. VÃ¡lidos: {list(planos.keys())}")
         
         if req.billingType not in ("PIX", "CREDIT_CARD", "BOLETO"):
-            raise HTTPException(400, f"billingType '{req.billingType}' inválido")
+            raise HTTPException(400, f"billingType '{req.billingType}' invÃ¡lido")
         
         plano = planos[req.planCode]
         
@@ -375,7 +375,7 @@ async def create_subscription(req: CreateSubscriptionRequest):
         
         logger.info(f"[Asaas] Criando assinatura: {req.planCode} | R${value} | {cycle} | {req.billingType}")
         
-        # Data do próximo vencimento
+        # Data do prÃ³ximo vencimento
         tomorrow = (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")
         
         payload = {
@@ -388,10 +388,10 @@ async def create_subscription(req: CreateSubscriptionRequest):
             "externalReference": req.userId,
         }
         
-        # Cartão de crédito
+        # CartÃ£o de crÃ©dito
         if req.billingType == "CREDIT_CARD":
             if not req.creditCard or not req.creditCardHolderInfo:
-                raise HTTPException(400, "Dados do cartão incompletos")
+                raise HTTPException(400, "Dados do cartÃ£o incompletos")
             
             payload["creditCard"] = {
                 "holderName": req.creditCard.holderName,
@@ -431,7 +431,7 @@ async def create_subscription(req: CreateSubscriptionRequest):
                     "updated_at": datetime.utcnow().isoformat(),
                 }, on_conflict="user_id").execute()
                 
-                # Se ativa (cartão), atualizar profile
+                # Se ativa (cartÃ£o), atualizar profile
                 if result.get("status") == "ACTIVE":
                     supabase.table("profiles").update({
                         "plano": req.planCode,
@@ -454,7 +454,7 @@ async def create_subscription(req: CreateSubscriptionRequest):
 async def get_subscription(req: GetSubscriptionRequest):
     """Buscar assinatura (valida propriedade)."""
     if not await _user_owns_subscription(req.userId, req.subscriptionId):
-        raise HTTPException(404, "Assinatura não encontrada")
+        raise HTTPException(404, "Assinatura nÃ£o encontrada")
     return await _asaas_request("GET", f"/subscriptions/{req.subscriptionId}")
 
 
@@ -462,7 +462,7 @@ async def get_subscription(req: GetSubscriptionRequest):
 async def cancel_subscription(req: CancelSubscriptionRequest):
     """Cancelar assinatura (valida propriedade, faz downgrade)."""
     if not await _user_owns_subscription(req.userId, req.subscriptionId):
-        raise HTTPException(404, "Assinatura não encontrada")
+        raise HTTPException(404, "Assinatura nÃ£o encontrada")
     
     logger.info(f"[Asaas] Cancelando assinatura {req.subscriptionId} do user {req.userId}")
     result = await _asaas_request("DELETE", f"/subscriptions/{req.subscriptionId}")
@@ -491,7 +491,7 @@ async def cancel_subscription(req: CancelSubscriptionRequest):
 async def list_subscription_payments(req: ListSubscriptionPaymentsRequest):
     """Listar pagamentos de uma assinatura (valida propriedade)."""
     if not await _user_owns_subscription(req.userId, req.subscriptionId):
-        raise HTTPException(404, "Assinatura não encontrada")
+        raise HTTPException(404, "Assinatura nÃ£o encontrada")
     return await _asaas_request("GET", f"/payments?subscription={req.subscriptionId}")
 
 
@@ -499,7 +499,7 @@ async def list_subscription_payments(req: ListSubscriptionPaymentsRequest):
 async def get_pix_qrcode(req: GetPixQrCodeRequest):
     """Buscar QR Code PIX de um pagamento (valida propriedade)."""
     if not await _user_owns_payment(req.userId, req.paymentId):
-        raise HTTPException(404, "Pagamento não encontrado")
+        raise HTTPException(404, "Pagamento nÃ£o encontrado")
     return await _asaas_request("GET", f"/payments/{req.paymentId}/pixQrCode")
 
 
@@ -507,7 +507,7 @@ async def get_pix_qrcode(req: GetPixQrCodeRequest):
 async def get_payment(req: GetPaymentRequest):
     """Buscar pagamento (valida propriedade)."""
     if not await _user_owns_payment(req.userId, req.paymentId):
-        raise HTTPException(404, "Pagamento não encontrado")
+        raise HTTPException(404, "Pagamento nÃ£o encontrado")
     return await _asaas_request("GET", f"/payments/{req.paymentId}")
 
 
@@ -515,11 +515,11 @@ async def get_payment(req: GetPaymentRequest):
 async def buy_centelhas(req: BuyCentelhasRequest):
     """Comprar pacote de centelhas com valor SERVER-SIDE."""
     try:
-        # Buscar pacotes dinâmicos do banco
+        # Buscar pacotes dinÃ¢micos do banco
         pacotes = _get_pacotes_centelhas()
         
         if req.pacoteId not in pacotes:
-            raise HTTPException(400, f"Pacote '{req.pacoteId}' inválido")
+            raise HTTPException(400, f"Pacote '{req.pacoteId}' invÃ¡lido")
         
         pacote = pacotes[req.pacoteId]
         
@@ -584,7 +584,7 @@ async def buy_centelhas(req: BuyCentelhasRequest):
 
 @router.get("/plans")
 async def list_plans():
-    """Retorna os planos disponíveis com valores (dinâmico do Supabase)."""
+    """Retorna os planos disponÃ­veis com valores (dinÃ¢mico do Supabase)."""
     planos = _get_planos()
     pacotes = _get_pacotes_centelhas()
     
@@ -613,409 +613,176 @@ async def list_plans():
 
 
 # =============================================
-# ABACATEPAY — PIX Payment Gateway
+# ASAAS WEBHOOK â€” Recebe notificaÃ§Ãµes de pagamento
 # =============================================
 
-ABACATEPAY_BASE_URL = "https://api.abacatepay.com/v1"
 
-
-async def _abacatepay_request(method: str, endpoint: str, data: dict = None, params: dict = None) -> dict:
-    """Faz request para API AbacatePay com auth Bearer."""
-    settings = get_settings()
-    api_key = settings.abacatepay_api_key
-
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AbacatePay API key não configurada")
-
-    url = f"{ABACATEPAY_BASE_URL}{endpoint}"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
-
-    logger.info(f"[AbacatePay] {method} {endpoint}")
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        if method == "GET":
-            resp = await client.get(url, headers=headers, params=params)
-        elif method == "POST":
-            resp = await client.post(url, headers=headers, json=data)
-        else:
-            raise HTTPException(400, f"Método {method} não suportado")
-
-    if not resp.is_success:
-        try:
-            error_data = resp.json()
-            msg = error_data.get("error") or f"Erro AbacatePay: {resp.status_code}"
-        except Exception:
-            msg = f"Erro AbacatePay: {resp.status_code}"
-        logger.error(f"[AbacatePay] {method} {endpoint} → {resp.status_code}: {msg}")
-        raise HTTPException(status_code=resp.status_code, detail=msg)
-
-    result = resp.json()
-    # AbacatePay wraps responses in {"data": ..., "error": ...}
-    if "error" in result and result["error"]:
-        raise HTTPException(status_code=400, detail=result["error"])
-
-    return result.get("data", result)
-
-
-class AbacatePayCreatePixRequest(BaseModel):
-    itemType: str  # "plan" ou "centelhas"
-    itemCode: str  # código do plano ou pacote
-    cycle: str = "monthly"  # "monthly" ou "annual" (só para planos)
-    userId: str
-    customerName: Optional[str] = None
-    customerEmail: Optional[str] = None
-    customerPhone: Optional[str] = None
-    customerTaxId: Optional[str] = None
-
-
-class AbacatePayCheckPixRequest(BaseModel):
-    pixId: str
-    userId: str
-
-
-class AbacatePaySimulateRequest(BaseModel):
-    pixId: str
-    userId: str
-
-
-@router.post("/abacatepay/create-pix")
-async def abacatepay_create_pix(req: AbacatePayCreatePixRequest):
+@router.post("/asaas/webhook")
+async def asaas_webhook(request: Request):
     """
-    Criar cobrança PIX via AbacatePay.
-    Valor definido SERVER-SIDE a partir do plano/pacote.
+    Webhook receiver para Asaas.
+    Recebe notificaÃ§Ãµes de pagamento e assinatura:
+    - PAYMENT_RECEIVED / PAYMENT_CONFIRMED â†’ ativar plano
+    - PAYMENT_OVERDUE â†’ marcar como inadimplente
+    - SUBSCRIPTION_CANCELED / SUBSCRIPTION_DELETED â†’ downgrade para semente
+    URL: https://api.vibraeu.com.br/payments/asaas/webhook
     """
     try:
-        # Determinar valor e descrição server-side
-        if req.itemType == "plan":
-            planos = _get_planos()
-            if req.itemCode not in planos:
-                raise HTTPException(400, f"Plano '{req.itemCode}' inválido. Válidos: {list(planos.keys())}")
-            plano = planos[req.itemCode]
-            is_annual = req.cycle == "annual"
-            value = plano["valor_anual"] if is_annual and plano.get("valor_anual") else plano["valor_mensal"]
-            description = f"{plano['description']} ({'Anual' if is_annual else 'Mensal'})"
-        elif req.itemType == "centelhas":
-            pacotes = _get_pacotes_centelhas()
-            if req.itemCode not in pacotes:
-                raise HTTPException(400, f"Pacote '{req.itemCode}' inválido")
-            pacote = pacotes[req.itemCode]
-            value = pacote["preco"]
-            description = pacote["descricao"]
-        else:
-            raise HTTPException(400, f"itemType '{req.itemType}' inválido")
+        # 1. Validar token do webhook
+        expected_token = "whsec_wHtwTm29OywF3P380I82EwDfuc7X3ubzmfbDfsqTkMQ"
+        received_token = request.headers.get('asaas-access-token')
+        if received_token != expected_token:
+            logger.warning("[Asaas Webhook] Token inválido")
+            raise HTTPException(401, "Token inválido")
 
-        # AbacatePay usa centavos
-        amount_cents = int(round(value * 100))
+        # 2. Parse body
+        import json
+        raw_body = await request.body()
+        body = json.loads(raw_body)
 
-        logger.info(f"[AbacatePay] Criando PIX: {req.itemType}/{req.itemCode} | R${value} ({amount_cents} centavos)")
+        event = body.get("event", "")
+        payment = body.get("payment")
+        subscription = body.get("subscription")
 
-        # Montar payload
-        payload: Dict[str, Any] = {
-            "amount": amount_cents,
-            "expiresIn": 3600,  # 1 hora
-            "description": description[:37],  # Limite de 37 caracteres no PIX
-        }
+        logger.info(f"[Asaas Webhook] Evento: {event}")
 
-        # Adicionar customer se disponível
-        if req.customerName and req.customerEmail:
-            payload["customer"] = {
-                "name": req.customerName,
-                "email": req.customerEmail,
-                "cellphone": req.customerPhone or "(00) 00000-0000",
-                "taxId": req.customerTaxId or "000.000.000-00",
-            }
-
-        # Metadata para rastreamento
-        payload["metadata"] = {
-            "userId": req.userId,
-            "itemType": req.itemType,
-            "itemCode": req.itemCode,
-            "cycle": req.cycle,
-        }
-
-        result = await _abacatepay_request("POST", "/pixQrCode/create", payload)
-
-        # Sync com Supabase
         supabase = _get_supabase()
-        if supabase and result.get("id"):
+        if not supabase:
+            logger.error("[Asaas Webhook] Supabase indisponÃ­vel")
+            return {"received": True, "processed": False}
+
+        # 3. Processar eventos de pagamento
+        if payment and payment.get("id"):
+            payment_id = payment["id"]
+            payment_status = payment.get("status", "")
+            subscription_id = payment.get("subscription")
+
+            # Mapear status
+            if event in ("PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"):
+                new_status = "CONFIRMED"
+            elif event == "PAYMENT_OVERDUE":
+                new_status = "OVERDUE"
+            elif event == "PAYMENT_REFUNDED":
+                new_status = "REFUNDED"
+            elif event == "PAYMENT_CREATED":
+                new_status = "PENDING"
+            else:
+                new_status = payment_status
+
+            # Atualizar pagamento existente
             try:
-                supabase.table("pagamentos").insert({
-                    "user_id": req.userId,
-                    "asaas_payment_id": result["id"],  # Reusa campo, prefixo pix_char_ identifica AbacatePay
-                    "status": result.get("status", "PENDING"),
-                    "forma_pagamento": "PIX",
-                    "valor": value,
-                    "data_vencimento": datetime.utcnow().strftime("%Y-%m-%d"),
-                    "descricao": description,
-                    "is_sandbox": result.get("devMode", False),
-                    "created_at": datetime.utcnow().isoformat(),
-                }).execute()
+                supabase.table("pagamentos").update({
+                    "status": new_status,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }).eq("asaas_payment_id", payment_id).execute()
             except Exception as e:
-                logger.warning(f"[AbacatePay] Sync payment failed: {e}")
+                logger.warning(f"[Asaas Webhook] Erro ao atualizar pagamento: {e}")
 
-        return {
-            "pixId": result.get("id"),
-            "brCode": result.get("brCode"),
-            "brCodeBase64": result.get("brCodeBase64"),
-            "amount": result.get("amount"),
-            "status": result.get("status"),
-            "expiresAt": result.get("expiresAt"),
-            "devMode": result.get("devMode", False),
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[AbacatePay] create-pix error: {e}")
-        raise HTTPException(500, str(e))
-
-
-@router.post("/abacatepay/check-pix")
-async def abacatepay_check_pix(req: AbacatePayCheckPixRequest):
-    """Checar status de pagamento PIX via AbacatePay."""
-    try:
-        result = await _abacatepay_request("GET", "/pixQrCode/check", params={"id": req.pixId})
-
-        status = result.get("status", "PENDING")
-
-        # Se pago, atualizar Supabase
-        if status == "PAID":
-            supabase = _get_supabase()
-            if supabase:
+            # Se pagamento confirmado e tem assinatura, ativar plano
+            if event in ("PAYMENT_CONFIRMED", "PAYMENT_RECEIVED") and subscription_id:
                 try:
-                    # Atualizar status do pagamento
-                    supabase.table("pagamentos").update({
-                        "status": "RECEIVED",
-                        "updated_at": datetime.utcnow().isoformat(),
-                    }).eq("asaas_payment_id", req.pixId).execute()
-
-                    # Buscar metadata para saber o que foi comprado
-                    pag_result = supabase.table("pagamentos") \
-                        .select("descricao, user_id, valor") \
-                        .eq("asaas_payment_id", req.pixId) \
+                    sub_result = supabase.table("assinaturas") \
+                        .select("user_id, plano") \
+                        .eq("asaas_subscription_id", subscription_id) \
                         .maybe_single() \
                         .execute()
 
-                    if pag_result.data:
-                        logger.info(f"[AbacatePay] PIX {req.pixId} confirmado para user {req.userId}")
+                    if sub_result.data:
+                        user_id = sub_result.data.get("user_id")
+                        plan_code = sub_result.data.get("plano")
+
+                        if user_id and plan_code:
+                            supabase.table("assinaturas").update({
+                                "status": "active",
+                                "updated_at": datetime.utcnow().isoformat(),
+                            }).eq("asaas_subscription_id", subscription_id).execute()
+
+                            supabase.table("profiles").update({
+                                "plano": plan_code,
+                                "subscription_status": "active",
+                                "updated_at": datetime.utcnow().isoformat(),
+                            }).eq("id", user_id).execute()
+
+                            logger.info(f"[Asaas Webhook] âœ… Plano {plan_code} ativado para user {user_id}")
                 except Exception as e:
-                    logger.warning(f"[AbacatePay] Sync check-pix failed: {e}")
+                    logger.error(f"[Asaas Webhook] Erro ao ativar plano: {e}")
 
-        return {
-            "status": status,
-            "expiresAt": result.get("expiresAt"),
-        }
+            # Se pagamento vencido, marcar assinatura
+            if event == "PAYMENT_OVERDUE" and subscription_id:
+                try:
+                    supabase.table("assinaturas").update({
+                        "status": "overdue",
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }).eq("asaas_subscription_id", subscription_id).execute()
+                except Exception as e:
+                    logger.warning(f"[Asaas Webhook] Erro ao marcar overdue: {e}")
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[AbacatePay] check-pix error: {e}")
-        raise HTTPException(500, str(e))
+        # 4. Processar eventos de assinatura
+        if subscription and subscription.get("id"):
+            sub_id = subscription["id"]
 
+            if event in ("SUBSCRIPTION_CANCELED", "SUBSCRIPTION_DELETED"):
+                try:
+                    sub_result = supabase.table("assinaturas") \
+                        .select("user_id") \
+                        .eq("asaas_subscription_id", sub_id) \
+                        .maybe_single() \
+                        .execute()
 
-@router.post("/abacatepay/simulate-payment")
-async def abacatepay_simulate_payment(req: AbacatePaySimulateRequest):
-    """Simular pagamento PIX (somente dev mode)."""
-    try:
-        result = await _abacatepay_request(
-            "POST",
-            "/pixQrCode/simulate-payment",
-            data={"metadata": {}},
-            params={"id": req.pixId}
-        )
+                    supabase.table("assinaturas").update({
+                        "status": "canceled",
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }).eq("asaas_subscription_id", sub_id).execute()
 
-        # Atualizar Supabase como pago
-        supabase = _get_supabase()
-        if supabase:
-            try:
-                supabase.table("pagamentos").update({
-                    "status": "RECEIVED",
-                    "updated_at": datetime.utcnow().isoformat(),
-                }).eq("asaas_payment_id", req.pixId).execute()
-            except Exception as e:
-                logger.warning(f"[AbacatePay] Sync simulate failed: {e}")
-
-        return {
-            "pixId": result.get("id"),
-            "status": result.get("status"),
-            "devMode": result.get("devMode", True),
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[AbacatePay] simulate-payment error: {e}")
-        raise HTTPException(500, str(e))
-
-
-# =============================================
-# ABACATEPAY WEBHOOK — Recebe notificações de pagamento
-# =============================================
-
-# Chave pública HMAC da AbacatePay (documentação oficial)
-ABACATEPAY_HMAC_PUBLIC_KEY = "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9"
-
-
-def _verify_abacatepay_hmac(raw_body: bytes, signature: str) -> bool:
-    """Verifica assinatura HMAC-SHA256 do webhook AbacatePay."""
-    try:
-        import base64
-        expected = hmac.new(
-            ABACATEPAY_HMAC_PUBLIC_KEY.encode("utf-8"),
-            raw_body,
-            hashlib.sha256
-        ).digest()
-        expected_b64 = base64.b64encode(expected).decode("utf-8")
-        return hmac.compare_digest(expected_b64, signature)
-    except Exception as e:
-        logger.error(f"[AbacatePay Webhook] HMAC verification error: {e}")
-        return False
-
-
-@router.post("/abacatepay/webhook")
-async def abacatepay_webhook(
-    request: Request,
-    webhookSecret: Optional[str] = Query(None)
-):
-    """
-    Webhook receiver para AbacatePay.
-    Recebe notificações de pagamento (billing.paid) e atualiza o Supabase.
-    URL: https://api.vibraeu.com.br/payments/abacatepay/webhook?webhookSecret=SEU_SECRET
-    """
-    try:
-        # 1. Validar webhookSecret (autenticação simples)
-        settings = get_settings()
-        expected_secret = settings.abacatepay_webhook_secret
-        if expected_secret and webhookSecret != expected_secret:
-            logger.warning("[AbacatePay Webhook] Invalid webhook secret")
-            raise HTTPException(401, "Invalid webhook secret")
-
-        # 2. Ler body raw para HMAC
-        raw_body = await request.body()
-
-        # 3. Validar HMAC se presente
-        hmac_signature = request.headers.get("X-Webhook-Signature")
-        if hmac_signature:
-            if not _verify_abacatepay_hmac(raw_body, hmac_signature):
-                logger.warning("[AbacatePay Webhook] Invalid HMAC signature")
-                raise HTTPException(401, "Invalid HMAC signature")
-
-        # 4. Parse body
-        import json
-        body = json.loads(raw_body)
-
-        event = body.get("event")
-        dev_mode = body.get("devMode", False)
-        data = body.get("data", {})
-
-        logger.info(f"[AbacatePay Webhook] Evento: {event} | devMode: {dev_mode} | id: {body.get('id')}")
-
-        # 5. Processar billing.paid
-        if event == "billing.paid":
-            pix_qr = data.get("pixQrCode", {})
-            payment_info = data.get("payment", {})
-            pix_id = pix_qr.get("id")
-            amount = payment_info.get("amount", 0)  # centavos
-            status = pix_qr.get("status")
-
-            if not pix_id:
-                logger.warning("[AbacatePay Webhook] billing.paid sem pixQrCode.id")
-                return {"received": True, "processed": False}
-
-            logger.info(f"[AbacatePay Webhook] PIX pago: {pix_id} | amount: {amount} centavos | status: {status}")
-
-            supabase = _get_supabase()
-            if not supabase:
-                logger.error("[AbacatePay Webhook] Supabase indisponível")
-                return {"received": True, "processed": False}
-
-            # Buscar pagamento pelo pix_id
-            pag_result = supabase.table("pagamentos") \
-                .select("*") \
-                .eq("asaas_payment_id", pix_id) \
-                .maybe_single() \
-                .execute()
-
-            if not pag_result.data:
-                logger.warning(f"[AbacatePay Webhook] Pagamento {pix_id} não encontrado no Supabase")
-                return {"received": True, "processed": False}
-
-            pagamento = pag_result.data
-            user_id = pagamento.get("user_id")
-            description = pagamento.get("descricao", "")
-
-            # Atualizar status do pagamento
-            supabase.table("pagamentos").update({
-                "status": "RECEIVED",
-                "updated_at": datetime.utcnow().isoformat(),
-            }).eq("asaas_payment_id", pix_id).execute()
-
-            logger.info(f"[AbacatePay Webhook] Pagamento {pix_id} atualizado para RECEIVED | user: {user_id}")
-
-            # Determinar se é plano ou centelhas pela descrição
-            is_plan = "Assinatura" in description
-
-            if is_plan and user_id:
-                # Extrair o plano da descrição
-                plan_code = None
-                planos = _get_planos()
-                for code, plano in planos.items():
-                    if code.lower() in description.lower():
-                        plan_code = code
-                        break
-
-                if plan_code:
-                    try:
+                    if sub_result.data and sub_result.data.get("user_id"):
                         supabase.table("profiles").update({
-                            "plano": plan_code,
-                            "subscription_status": "active",
+                            "plano": "semente",
+                            "subscription_status": "canceled",
                             "updated_at": datetime.utcnow().isoformat(),
-                        }).eq("id", user_id).execute()
-                        logger.info(f"[AbacatePay Webhook] ✅ Plano {plan_code} ativado para user {user_id}")
-                    except Exception as e:
-                        logger.error(f"[AbacatePay Webhook] Erro ao ativar plano: {e}")
-                else:
-                    logger.warning(f"[AbacatePay Webhook] Plano não identificado na descrição: {description}")
+                        }).eq("id", sub_result.data["user_id"]).execute()
+                        logger.info(f"[Asaas Webhook] User {sub_result.data['user_id']} rebaixado para semente")
+                except Exception as e:
+                    logger.error(f"[Asaas Webhook] Erro ao cancelar: {e}")
 
-            elif not is_plan and user_id:
-                # Centelhas — creditar
-                pacotes = _get_pacotes_centelhas()
-                centelhas_total = 0
-                for code, pacote in pacotes.items():
-                    valor_centavos = int(round(pacote["preco"] * 100))
-                    if valor_centavos == amount:
-                        centelhas_total = pacote["quantidade"] + pacote.get("bonus", 0)
-                        break
+            elif event == "SUBSCRIPTION_RENEWED":
+                try:
+                    supabase.table("assinaturas").update({
+                        "status": "active",
+                        "proximo_vencimento": subscription.get("nextDueDate"),
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }).eq("asaas_subscription_id", sub_id).execute()
+                except Exception as e:
+                    logger.warning(f"[Asaas Webhook] Erro ao renovar: {e}")
 
-                if centelhas_total > 0:
-                    try:
-                        profile = supabase.table("profiles") \
-                            .select("centelhas") \
-                            .eq("id", user_id) \
-                            .maybe_single() \
-                            .execute()
-                        centelhas_atuais = profile.data.get("centelhas", 0) if profile.data else 0
+            elif event == "SUBSCRIPTION_EXPIRED":
+                try:
+                    sub_result = supabase.table("assinaturas") \
+                        .select("user_id") \
+                        .eq("asaas_subscription_id", sub_id) \
+                        .maybe_single() \
+                        .execute()
 
+                    supabase.table("assinaturas").update({
+                        "status": "expired",
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }).eq("asaas_subscription_id", sub_id).execute()
+
+                    if sub_result.data and sub_result.data.get("user_id"):
                         supabase.table("profiles").update({
-                            "centelhas": centelhas_atuais + centelhas_total,
+                            "plano": "semente",
+                            "subscription_status": "expired",
                             "updated_at": datetime.utcnow().isoformat(),
-                        }).eq("id", user_id).execute()
-                        logger.info(f"[AbacatePay Webhook] ✅ +{centelhas_total} centelhas creditadas para user {user_id}")
-                    except Exception as e:
-                        logger.error(f"[AbacatePay Webhook] Erro ao creditar centelhas: {e}")
-                else:
-                    logger.warning(f"[AbacatePay Webhook] Pacote de centelhas não encontrado para amount {amount}")
-
-        else:
-            logger.info(f"[AbacatePay Webhook] Evento {event} ignorado (não é billing.paid)")
+                        }).eq("id", sub_result.data["user_id"]).execute()
+                except Exception as e:
+                    logger.error(f"[Asaas Webhook] Erro ao expirar: {e}")
 
         return {"received": True}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[AbacatePay Webhook] Erro inesperado: {e}")
+        logger.error(f"[Asaas Webhook] Erro inesperado: {e}")
         return {"received": True, "error": str(e)}
+
+
+
