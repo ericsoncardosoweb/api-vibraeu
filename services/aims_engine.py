@@ -270,6 +270,9 @@ class AIMSEngine:
                 "email": user_data.get("email", ""),
                 "sexo": user_data.get("sexo", user_data.get("gender", "")),
                 "birth_date": user_data.get("birth_date", ""),
+                "profissao": user_data.get("profissao", ""),
+                "estado_civil": user_data.get("estado_civil", ""),
+                "tem_filhos": user_data.get("tem_filhos", ""),
             },
             # MAC variables
             "mac": {
