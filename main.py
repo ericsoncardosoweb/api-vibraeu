@@ -31,6 +31,7 @@ from routers import compatibility
 from routers import monthly_reports
 from routers import alinhamento
 from routers import disc
+from routers import story_backgrounds
 from scheduler.jobs import start_scheduler, shutdown_scheduler
 from middleware.auth import verify_api_key
 
@@ -321,6 +322,16 @@ app.include_router(
 app.include_router(
     disc.router, 
     tags=["DISC Analysis"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+# ============================================================================
+# Rotas de Story Backgrounds — Imagens IA para stories
+# GET público, POST admin protegido por API key
+# ============================================================================
+app.include_router(
+    story_backgrounds.router, 
+    tags=["Story Backgrounds"],
     dependencies=[Depends(verify_api_key)]
 )
 
