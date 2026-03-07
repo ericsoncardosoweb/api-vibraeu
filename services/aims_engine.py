@@ -509,14 +509,15 @@ class AIMSEngine:
     def _substitute_variables(self, text: str, context: Dict[str, Any]) -> str:
         """
         Substitute variables in text.
-        Variables use format: @category.variable
-        Example: @user.name, @mac.full, @context.today
+        Variables use format: @category.variable or [@category.variable]
+        Example: @user.name, [@quiz.profissao], @mac.full, @context.today
         """
         if not text:
             return text
         
-        # Pattern: @category.variable (with optional nested paths)
-        pattern = r"@(\w+)\.(\w+(?:\.\w+)*)"
+        # Pattern: @category.variable or [@category.variable] (with optional nested paths)
+        # Supports both formats: @quiz.profissao and [@quiz.profissao]
+        pattern = r"\[?@(\w+)\.(\w+(?:\.\w+)*)\]?"
         
         def replace_var(match):
             category = match.group(1)
@@ -541,7 +542,11 @@ class AIMSEngine:
                 if isinstance(value, (dict, list)):
                     return json.dumps(value, ensure_ascii=False, default=str)
                 
-                return str(value) if value is not None else match.group(0)
+                # Se valor é vazio, retornar string vazia (não manter placeholder)
+                if value is None or value == "":
+                    return "não informado"
+                
+                return str(value)
                 
             except Exception as e:
                 logger.warning(f"Error substituting variable {match.group(0)}: {e}")
