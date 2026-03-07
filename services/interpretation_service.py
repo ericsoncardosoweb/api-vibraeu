@@ -347,7 +347,168 @@ class InterpretationService:
         
         # Process immediately
         return await self.process_queue_item(queue_item)
-    
+
+    async def sync_user_interpretations(
+        self,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Sync interpretations for a user.
+        
+        Checks which MAC templates should have been released by now
+        but have no content in user_infos_data. Regenerates missing ones
+        sequentially with 10s throttle between each.
+        
+        Called by frontend on login/MAC load.
+        
+        Args:
+            user_id: The user ID
+            
+        Returns:
+            Dict with missing, generated, failed counts and details
+        """
+        logger.info(f"[AIMS Sync] Starting sync for user {user_id}")
+        
+        # 1. Get user's MAC
+        mac_data = await self.db.get_user_mac(user_id)
+        if not mac_data:
+            logger.info(f"[AIMS Sync] No MAC found for user {user_id}")
+            return {"success": True, "missing": 0, "generated": 0, "message": "No MAC found"}
+        
+        mac_created_at = mac_data.get("created_at")
+        if not mac_created_at:
+            mac_created_at = datetime.utcnow().isoformat()
+        
+        # Parse MAC creation date
+        if isinstance(mac_created_at, str):
+            try:
+                mac_date = datetime.fromisoformat(mac_created_at.replace("Z", "+00:00")).replace(tzinfo=None)
+            except:
+                mac_date = datetime.utcnow()
+        else:
+            mac_date = mac_created_at
+        
+        # 2. Get ALL active MAC templates (ignore target_profiles filter)
+        try:
+            response = self.db.client.table("adv_interpretation_templates") \
+                .select("*") \
+                .eq("trigger_event", "MAC_GENERATED") \
+                .eq("is_active", True) \
+                .execute()
+            templates = response.data or []
+        except Exception as e:
+            logger.error(f"[AIMS Sync] Error fetching templates: {e}")
+            return {"success": False, "error": str(e)}
+        
+        if not templates:
+            logger.info("[AIMS Sync] No MAC_GENERATED templates found")
+            return {"success": True, "missing": 0, "generated": 0, "message": "No templates"}
+        
+        # 3. Get existing content for this user
+        try:
+            existing_response = self.db.client.table("user_infos_data") \
+                .select("action") \
+                .eq("user_id", user_id) \
+                .execute()
+            existing_actions = set()
+            for item in (existing_response.data or []):
+                # Only count as existing if metadata is not null/empty
+                existing_actions.add(item["action"])
+        except Exception as e:
+            logger.error(f"[AIMS Sync] Error fetching existing content: {e}")
+            existing_actions = set()
+        
+        # 4. Check which templates should be released but have no content
+        now = datetime.utcnow()
+        missing_templates = []
+        
+        for template in templates:
+            custom_key = template.get("custom_key", "")
+            delay_days = template.get("release_delay_days", 0) or 0
+            delay_hours = template.get("release_delay_hours", 0) or 0
+            
+            release_date = mac_date + timedelta(days=delay_days, hours=delay_hours)
+            
+            if release_date <= now and custom_key not in existing_actions:
+                missing_templates.append({
+                    "template": template,
+                    "custom_key": custom_key,
+                    "was_due_since": release_date.isoformat()
+                })
+        
+        if not missing_templates:
+            logger.info(f"[AIMS Sync] All interpretations up to date for user {user_id}")
+            return {
+                "success": True, 
+                "missing": 0, 
+                "generated": 0, 
+                "total_templates": len(templates),
+                "existing": len(existing_actions),
+                "message": "All synced"
+            }
+        
+        logger.info(
+            f"[AIMS Sync] Found {len(missing_templates)} missing interpretations for user {user_id}: "
+            f"{[m['custom_key'] for m in missing_templates]}"
+        )
+        
+        # 5. Generate missing interpretations sequentially with throttle
+        generated = 0
+        failed = 0
+        results = []
+        
+        for i, missing in enumerate(missing_templates):
+            template = missing["template"]
+            custom_key = missing["custom_key"]
+            
+            # Throttle: 10s between each (except first)
+            if i > 0:
+                logger.info(f"[AIMS Sync] Throttle: waiting 10s before next...")
+                await asyncio.sleep(10)
+            
+            try:
+                logger.info(f"[AIMS Sync] Generating {custom_key} ({i+1}/{len(missing_templates)})")
+                
+                # Create queue item and process immediately
+                queue_item = await self.db.add_to_queue(
+                    user_id=user_id,
+                    template_id=template["id"],
+                    scheduled_for=datetime.utcnow()
+                )
+                
+                if not queue_item:
+                    raise Exception("Failed to create queue item")
+                
+                queue_item["template"] = template
+                result = await self.process_queue_item(queue_item)
+                
+                if result.get("success"):
+                    generated += 1
+                    results.append({"key": custom_key, "status": "generated"})
+                    logger.info(f"[AIMS Sync] ✅ Generated {custom_key}")
+                else:
+                    failed += 1
+                    results.append({"key": custom_key, "status": "failed", "error": result.get("error")})
+                    logger.error(f"[AIMS Sync] ❌ Failed {custom_key}: {result.get('error')}")
+                    
+            except Exception as e:
+                failed += 1
+                results.append({"key": custom_key, "status": "failed", "error": str(e)})
+                logger.error(f"[AIMS Sync] ❌ Exception for {custom_key}: {e}")
+        
+        logger.info(
+            f"[AIMS Sync] Sync complete for {user_id}: "
+            f"{generated} generated, {failed} failed of {len(missing_templates)} missing"
+        )
+        
+        return {
+            "success": failed == 0,
+            "missing": len(missing_templates),
+            "generated": generated,
+            "failed": failed,
+            "results": results
+        }
+
     def _get_module_link(self, module_relation: str) -> str:
         """
         Mapear módulo do template para link da aplicação.

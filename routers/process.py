@@ -81,6 +81,57 @@ async def process_now(request: ProcessNowRequest):
         )
 
 
+class SyncRequest(BaseModel):
+    """Request for sync processing."""
+    user_id: str
+
+
+class SyncResponse(BaseModel):
+    """Response from sync processing."""
+    success: bool
+    missing: int = 0
+    generated: int = 0
+    failed: int = 0
+    message: str = ""
+    results: List[Dict[str, Any]] = []
+
+
+@router.post("/sync", response_model=SyncResponse)
+async def sync_interpretations(request: SyncRequest):
+    """
+    Sync interpretations for a user.
+    
+    Checks which MAC templates should have been released by now
+    but have no content. Regenerates missing ones sequentially
+    with 10s throttle between each.
+    
+    Called by frontend on login/MAC page load.
+    """
+    logger.info(f"Sync request for user {request.user_id}")
+    
+    try:
+        service = InterpretationService()
+        result = await service.sync_user_interpretations(
+            user_id=request.user_id
+        )
+        
+        return SyncResponse(
+            success=result.get("success", False),
+            missing=result.get("missing", 0),
+            generated=result.get("generated", 0),
+            failed=result.get("failed", 0),
+            message=result.get("message", f"Generated {result.get('generated', 0)} interpretations"),
+            results=result.get("results", [])
+        )
+        
+    except Exception as e:
+        logger.error(f"Sync error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to sync interpretations: {str(e)}"
+        )
+
+
 @router.post("/pending", response_model=ProcessResponse)
 async def process_pending(request: ProcessPendingRequest = ProcessPendingRequest()):
     """
