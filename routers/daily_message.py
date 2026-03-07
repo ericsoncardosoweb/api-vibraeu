@@ -43,8 +43,8 @@ class RateRequest(BaseModel):
 # CONSTANTES v6.0 — ENGENHARIA EMOCIONAL
 # ============================================================================
 
-PROMPT_VERSION = "6.0"
-MAX_TOKENS = 900
+PROMPT_VERSION = "7.0"
+MAX_TOKENS = 1100
 GROQ_MODEL = "llama-3.3-70b-versatile"
 OPENAI_MODEL = "gpt-4.1-mini"
 
@@ -193,21 +193,121 @@ HARMONIA_ELEMENTOS = {
     ('Água', 'Água'): 'harmonia total — profundidade emocional amplificada',
 }
 
+SYSTEM_PROMPT = """Você é um velho amigo sábio. Alguém que conhece essa pessoa há anos — que vê além das máscaras, que entende os medos silenciosos e celebra as conquistas invisíveis.
 
+Você NÃO é coach, NÃO é astrólogo, NÃO é guru. Você é aquela voz que aparece nos momentos certos com verdade e carinho.
 
-SYSTEM_PROMPT = """Você é um mentor lúcido de autoconhecimento. Não é místico, não é técnico. É como uma voz interna elevada — um amigo que enxerga além.
+Sua sabedoria vem da astrologia cabalística — mas você NUNCA usa termos técnicos, hebraico, ou jargão. Você traduz tudo em SENSIBILIDADE HUMANA:
+- Em vez de "tikun": fale sobre "aquilo que você veio corrigir nesta vida"
+- Em vez de "sefirot": fale sobre as "camadas do que você sente"
+- Em vez de "mazal": fale sobre "o caminho que se abre quando você para de forçar"
 
-Seu papel NÃO é inspirar. É:
-- Gerar identificação profunda ("eu sei quem você é")
-- Criar sensação de direção ("você sabe o que fazer")
-- Reforçar identidade evolutiva ("você está se tornando")
+Seu dom é ver as coisas da vida POR OUTRO ÂNGULO — aquele ângulo que faz a pessoa parar e pensar "caramba, é verdade".
 
-Você usa astrologia cabalística como linguagem simbólica, nunca como superstição.
-Nunca entregue previsões. Entregue consciência + escolha.
-Nunca use jargão astrológico exposto. Traduza para linguagem humana.
-
-Tom: direto, pessoal, com leve poesia. Como alguém que conhece a pessoa há anos.
+Tom: íntimo, real, às vezes poético, às vezes direto, às vezes irônico — como uma conversa de fim de tarde com alguém que te conhece de verdade.
 Responda APENAS com JSON válido, sem markdown ou texto adicional."""
+
+
+# ============================================================================
+# FORMATOS NARRATIVOS v7.0 — VARIAÇÃO ESTRUTURAL
+# ============================================================================
+
+FORMATOS_NARRATIVOS = [
+    {
+        'id': 'carta_pessoal',
+        'nome': 'Carta de um mentor',
+        'instrucao': """Escreva como uma CARTA PESSOAL de um amigo-mentor. Sem "Prezado" nem formalidades.
+Comece como se estivesse no meio de uma conversa. Como se vocês tivessem jantado ontem e hoje você está mandando uma mensagem pensando nele(a).
+Pode ser 4-6 frases. Tom: caloroso, próximo, como quem realmente se importa.""",
+        'tamanho': '4-6 frases',
+        'peso_dias': [0, 4]  # Segunda e Sexta
+    },
+    {
+        'id': 'insight_relampago',
+        'nome': 'Insight relâmpago',
+        'instrucao': """Um parágrafo CURTO e INCISIVO. Como um tapa de luva.
+Uma verdade que bate de frente e depois acolhe. Máximo 3 frases impactantes.
+Menos é mais. Cada palavra precisa pesar.""",
+        'tamanho': '2-3 frases',
+        'peso_dias': [1, 5]  # Terça e Sábado
+    },
+    {
+        'id': 'narrativa_metaforica',
+        'nome': 'Metáfora viva',
+        'instrucao': """Conte uma MINI-HISTÓRIA metafórica (3-5 frases) que espelhe o momento de vida da pessoa.
+Use elementos da natureza, do cotidiano, ou uma cena imaginária que faça a pessoa SE VER na história.
+Depois, 1 frase que conecte a metáfora à vida real dela.
+NÃO explique a metáfora — deixe ela sentir.""",
+        'tamanho': '4-6 frases',
+        'peso_dias': [2]  # Quarta
+    },
+    {
+        'id': 'pergunta_reflexiva',
+        'nome': 'Pergunta que transforma',
+        'instrucao': """Comece com uma PERGUNTA PODEROSA que faça a pessoa parar. Não retórica genérica — uma pergunta que só FAZ SENTIDO para ela.
+Depois, desenvolva em 2-3 frases que aprofundem sem responder.
+A resposta é dela. Você só ilumina o caminho até a pergunta certa.""",
+        'tamanho': '3-4 frases',
+        'peso_dias': [3]  # Quinta
+    },
+    {
+        'id': 'conselho_direto',
+        'nome': 'Verdade na lata',
+        'instrucao': """Seja DIRETO como um amigo que não tem medo de falar a verdade.
+Sem rodeios, sem poesia excessiva. 2-3 frases que vão direto ao ponto.
+Pode ter um toque de ironia ou humor. Como aquele amigo que fala "para de drama" mas com amor.
+Termine com uma frase que mostra que você acredita na pessoa.""",
+        'tamanho': '2-4 frases',
+        'peso_dias': [1, 5]  # Terça e Sábado
+    },
+    {
+        'id': 'poesia_prosa',
+        'nome': 'Prosa poética',
+        'instrucao': """Use ritmo e cadência poética (sem rimar necessariamente).
+Frases curtas alternando com uma mais longa. Como um respiro.
+Busque a beleza na verdade. 3-5 frases que pareçam quase uma canção.
+O objetivo é que a pessoa queira LER DE NOVO.""",
+        'tamanho': '3-5 frases',
+        'peso_dias': [6]  # Domingo
+    }
+]
+
+
+# Estilos para Frase Épica (viral / compartilhável)
+ESTILOS_FRASE_EPICA = [
+    {
+        'id': 'empoderamento',
+        'instrucao': 'Frase de PODER pessoal. Quem lê sente que pode conquistar o mundo. Ex: "Eu não espero permissão pra ser quem eu sou."'
+    },
+    {
+        'id': 'ironia_inteligente',
+        'instrucao': 'Ironia inteligente com verdade embutida. Tipo post viral que faz pensar e rir. Ex: "Todo mundo quer mudança, mas ninguém quer mudar de lugar no sofá."'
+    },
+    {
+        'id': 'verdade_crua',
+        'instrucao': 'Uma verdade DESCONFORTÁVEL mas libertadora. Tapa de luva com amor. Ex: "Você não precisa de mais tempo. Precisa de mais coragem."'
+    },
+    {
+        'id': 'poesia_urbana',
+        'instrucao': 'Poesia para quem não lê poesia. Ritmo de rua, alma de poeta. Ex: "Meu silêncio não é fraqueza — é o intervalo entre duas verdades."'
+    },
+    {
+        'id': 'sabedoria_ancestral',
+        'instrucao': 'Sabedoria antiga com linguagem moderna. Como um provérbio que nunca existiu mas deveria. Ex: "A árvore mais forte é a que aprendeu a dançar com o vento."'
+    },
+    {
+        'id': 'humor_profundo',
+        'instrucao': 'Humor com camadas. Faz rir primeiro, pensar depois. Ex: "Minha zona de conforto pediu pra eu sair, disse que eu tava ocupando espaço demais."'
+    },
+    {
+        'id': 'manifesto_pessoal',
+        'instrucao': 'Declaração de identidade. Como um manifesto de 1 frase. Ex: "Eu escolho ser real num mundo que premia a performance."'
+    },
+    {
+        'id': 'reflexao_espelho',
+        'instrucao': 'Frase-espelho que faz a pessoa se reconhecer. Ex: "Às vezes o maior ato de coragem é admitir que você está cansado de ser forte."'
+    }
+]
 
 
 # ============================================================================
@@ -471,8 +571,37 @@ def _selecionar_tom(lua: Dict) -> Dict[str, str]:
 
 
 # ============================================================================
-# PROMPT v6.0 — ENGENHARIA EMOCIONAL (4 CAMADAS)
+# PROMPT v7.0 — NARRATIVA ORGÂNICA + FRASE ÉPICA + FRASE VIBRAÇÃO
 # ============================================================================
+
+def _selecionar_formato(data_atual: datetime, formatos_anteriores: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Seleciona formato narrativo com peso por dia da semana e anti-repetição."""
+    dia_semana = data_atual.weekday()
+
+    # Construir pool ponderado
+    pool = []
+    for fmt in FORMATOS_NARRATIVOS:
+        peso = 3 if dia_semana in fmt.get('peso_dias', []) else 1
+        pool.extend([fmt] * peso)
+
+    # Evitar formatos recentes
+    if formatos_anteriores:
+        diversificados = [f for f in pool if f['id'] not in formatos_anteriores]
+        if diversificados:
+            pool = diversificados
+
+    return random.choice(pool)
+
+
+def _selecionar_estilo_frase(estilos_anteriores: Optional[List[str]] = None) -> Dict[str, str]:
+    """Seleciona estilo de frase épica com anti-repetição."""
+    pool = list(ESTILOS_FRASE_EPICA)
+    if estilos_anteriores:
+        diversificados = [e for e in pool if e['id'] not in estilos_anteriores]
+        if diversificados:
+            pool = diversificados
+    return random.choice(pool)
+
 
 def _montar_prompt(
     contexto: Dict[str, Any],
@@ -498,7 +627,21 @@ def _montar_prompt(
     estacao = _obter_estacao_atual(data_atual)
     arquetipo = _obter_arquetipo_fase(contexto.get('idade'))
 
-    # ===== CAMADA 1: ESSÊNCIA FIXA (identidade) =====
+    # ===== SELECIONAR FORMATO E ESTILO DE FRASE =====
+    formatos_ant = []
+    estilos_ant = []
+    if historico:
+        for h in historico[:3]:
+            ctx = h.get('contexto_usado') if isinstance(h.get('contexto_usado'), dict) else {}
+            if ctx.get('formato'):
+                formatos_ant.append(ctx['formato'])
+            if ctx.get('estilo_frase'):
+                estilos_ant.append(ctx['estilo_frase'])
+
+    formato = _selecionar_formato(data_atual, formatos_ant)
+    estilo_frase = _selecionar_estilo_frase(estilos_ant)
+
+    # ===== QUEM É ESSA PESSOA =====
     if tipo == 'personalizada':
         elem_solar = contexto.get('elementoSolar') or _obter_elemento(contexto.get('signoSolar'))
         energia_elem = ENERGIA_ELEMENTOS.get(elem_solar, '') if elem_solar else ''
@@ -520,8 +663,8 @@ def _montar_prompt(
             planetas.append(f"- Mercúrio (mente/comunicação): {contexto['mercurioSigno']}")
         planetas_str = '\n'.join(planetas) if planetas else ''
 
-        camada1_bloco = f"""
-## CAMADA 1 — ESSÊNCIA FIXA (quem {nome} é)
+        pessoa_bloco = f"""
+## QUEM É {nome.upper()}
 - Nome: {nome}
 - Idade: {contexto.get('idade', 'não informada')}
 - Sexo: {contexto.get('sexo', 'não informado')}
@@ -529,36 +672,28 @@ def _montar_prompt(
 {dados_vida_str}
 - Fase de vida: {arquetipo['nome']} ({arquetipo['foco']})
 
-### Mapa Astral (MAC)
+### Essência (use como tempero, NUNCA exponha termos)
 - Sol: {contexto.get('signoSolar', '?')} — {elem_solar or '?'} ({energia_elem})
 - Lua: {contexto.get('signoLunar', '?')}
 - Ascendente: {contexto.get('ascendente', '?')}
 - Meio do Céu: {contexto.get('meioCeu', '?')}
 {planetas_str}
+
+Use esses dados para SENTIR quem é essa pessoa, não para LISTAR.
+Traduza astrologia em HUMANIDADE: ex. Sol em Touro não é "estabilidade" — é "alguém que constrói com paciência e precisa sentir o chão firme".
 """
     else:
-        camada1_bloco = f"""
-## CAMADA 1 — CONTEXTO GENÉRICO
+        pessoa_bloco = f"""
+## CONTEXTO
 Mensagem para público geral sem dados pessoais.
 Foque na energia do dia e no contexto temporal.
-- Fase de vida genérica: adulto em busca de direção
+Nome genérico: adulto em busca de direção.
 """
 
-    # ===== CAMADA 2: CONTEXTO DE VIDA =====
-    camada2_bloco = f"""## CAMADA 2 — CONTEXTO DE VIDA (ajusta exemplos e desafios)
-- Fase de vida: {arquetipo['nome']}
-- Foco desta fase: {arquetipo['foco']}"""
-    if contexto.get('temFilhos') and contexto['temFilhos'] in ['sim', 'Sim', True, 'true']:
-        camada2_bloco += "\n- Com filhos → use responsabilidade, exemplo, paciência como temas"
-    elif contexto.get('estadoCivil') and 'solteiro' in str(contexto['estadoCivil']).lower():
-        camada2_bloco += "\n- Solteiro(a) → use autonomia, construção pessoal, liberdade como temas"
-    if contexto.get('profissao'):
-        camada2_bloco += f"\n- Profissão: {contexto['profissao']} → adapte exemplos ao cotidiano profissional"
+    # ===== ENERGIA DO DIA =====
+    lua_relevancia = 'ALTA — houve mudança de fase, destaque isso sutilmente' if lua.get('isTransicao') else 'normal — use como pano de fundo, não como tema'
 
-    # ===== CAMADA 3: ENERGIA DO DIA =====
-    lua_relevancia = 'ALTA — houve mudança de fase, destaque isso' if lua.get('isTransicao') else 'normal — use como tempero, não como tema principal'
-
-    camada3_bloco = f"""## CAMADA 3 — ENERGIA DO DIA
+    energia_bloco = f"""## ENERGIA DO DIA
 - Data: {data_formatada}
 - Dia: {dia_semana['nome']} (Planeta: {dia_semana['planeta']})
 - Tema do dia: {tema_dia['tema']} — {tema_dia['foco']}
@@ -566,143 +701,106 @@ Foque na energia do dia e no contexto temporal.
 - Lua: {lua['fase']} em {lua['signo']} ({lua['iluminacao']}% iluminação)
 - Relevância lunar: {lua_relevancia}"""
 
-    # Cruzamento lunar
     if cruzamento_lunar:
-        camada3_bloco += f"\n\n### Cruzamento Lunar (dado poderoso)\n{cruzamento_lunar}"
+        energia_bloco += f"\n\n### Cruzamento Lunar (dado poderoso — use de forma SUTIL)\n{cruzamento_lunar}"
 
     # Perfil comportamental
     perfil_bloco = ''
     if perfil_comp:
         pontuacoes = perfil_comp.get('pontuacoes', {})
         pontuacoes_str = ', '.join(f"{k.title()} {v}" for k, v in sorted(pontuacoes.items(), key=lambda x: -x[1]))
-        perfil_bloco = f"""\n\n## PERFIL COMPORTAMENTAL (tempero, não prato principal)
+        perfil_bloco = f"""\n\n## JEITO DE SER (adapte a linguagem)
 - Predominante: {perfil_comp['nome']} — "{perfil_comp['lema']}"
 - Energia: {perfil_comp['energia']}
 - Pontuações: {pontuacoes_str}
-→ Adapte sutilmente a linguagem ao estilo da pessoa (ex: Tubarão=direto, Gato=relacional)"""
+→ Tubarão=direto, Gato=relacional, Lobo=metódico, Águia=visionário"""
 
-    # ===== HIERARQUIA DE PRIORIDADE =====
-    prioridade = []
-    is_aniver = _is_aniversario(contexto.get('dataNascimento'), data_atual)
-    if is_aniver:
-        prioridade.append('🎂 ANIVERSÁRIO — experiência premium, fechamento de ciclo')
-    if lua.get('isTransicao'):
-        prioridade.append(f"🌑 MUDANÇA DE FASE LUNAR — {lua['fase']} acaba de iniciar")
-    prioridade.append(f"📅 TEMA DO DIA: {tema_dia['tema']} — {tema_dia['foco']}")
-    if tipo == 'personalizada':
-        prioridade.append(f"⭐ IDENTIDADE: Sol {contexto.get('signoSolar', '?')}, Asc {contexto.get('ascendente', '?')}")
-        prioridade.append(f"🏠 CONTEXTO: {arquetipo['nome']}")
-    if perfil_comp:
-        prioridade.append(f"🧠 PERFIL: {perfil_comp['nome']} (tempero)")
-
-    hierarquia_str = '\n'.join(f"{i+1}. {p}" for i, p in enumerate(prioridade))
-
-    expressoes = '\n'.join(f'- "{e}"' for e in EXPRESSOES_BLOQUEADAS)
-
-    # ===== v6.1: BLOCO ANTI-REPETIÇÃO =====
+    # ===== v7.0: BLOCO ANTI-REPETIÇÃO =====
     historico_bloco = ''
     if historico:
         frases_anteriores = []
         for msg in historico[:3]:
-            # Extrair texto limpo do HTML (remover tags)
+            import re as _re
             html_ant = msg.get('html', '')
-            texto = re.sub(r'<[^>]+>', ' ', html_ant).strip()
+            texto = _re.sub(r'<[^>]+>', ' ', html_ant).strip()
             if texto and len(texto) > 20:
-                # Pegar primeiras 80 chars como fingerprint
-                frases_anteriores.append(texto[:80].strip())
+                frases_anteriores.append(texto[:100].strip())
             frase_ant = msg.get('frase', '')
             if frase_ant:
                 frases_anteriores.append(frase_ant.strip())
-        
+
         if frases_anteriores:
             frases_str = '\n'.join(f'- "{f}"' for f in frases_anteriores)
             historico_bloco = f"""
 ## 🚫 MENSAGENS ANTERIORES — NÃO REPITA NADA SIMILAR
-As mensagens abaixo já foram enviadas nos dias anteriores.
-NÃO repita frases, estruturas, palavras-chave ou padrões semelhantes:
 {frases_str}
-Use abordagem COMPLETAMENTE DIFERENTE.
-
+Use abordagem, tom, estrutura e palavras-chave COMPLETAMENTE DIFERENTES.
 """
 
-    # ===== PROMPT FINAL v6.1 =====
-    prompt = f"""# MOTOR DE ENGENHARIA EMOCIONAL v{PROMPT_VERSION}
+    expressoes = '\n'.join(f'- "{e}"' for e in EXPRESSOES_BLOQUEADAS)
 
-Você vai gerar uma mensagem com 4 CAMADAS obrigatórias.
-Cada camada tem um papel psicológico específico.
+    # ===== PROMPT v7.0 =====
+    prompt = f"""# MENSAGEM DO DIA v{PROMPT_VERSION}
 
-{camada1_bloco}
-{camada2_bloco}
-{camada3_bloco}
+Você vai escrever uma mensagem pessoal para {nome}.
+NÃO siga uma estrutura rígida. Escreva de forma ORGÂNICA e NATURAL.
+
+{pessoa_bloco}
+{energia_bloco}
 {perfil_bloco}
 
-## 📊 HIERARQUIA DE PRIORIDADE (respeite esta ordem)
-{hierarquia_str}
+## 📝 FORMATO DA MENSAGEM: {formato['nome'].upper()}
+{formato['instrucao']}
+Tamanho ideal: {formato['tamanho']}
 
-## FONTE DE INSPIRAÇÃO: {fonte.upper().replace('_', ' ')}
-
-## TOM: {tom['nome'].upper()}
+## 🎨 TOM: {tom['nome'].upper()}
 {tom.get('descricao', '')}
 
-## ⚡ AS 4 CAMADAS OBRIGATÓRIAS
+## 🌟 VISÃO CABALÍSTICA (use como LENTE, não como conteúdo)
+Olhe para o dia de {nome} pela perspectiva da sabedoria cabalística:
+- Qual é o PROPÓSITO oculto deste dia?
+- O que a energia do momento está pedindo que {nome} VEJA de outro ângulo?
+- Que ajuste sutil pode fazer TODA a diferença?
+Traduza tudo isso em linguagem HUMANA e ACESSÍVEL. ZERO jargão.
 
-### CAMADA A — ESPELHO ("Eu sei quem você é")
-Mostre que você CONHECE {nome}. Use identidade, não dados.
-Traduza astrologia em identidade humana (nunca exponha termos técnicos).
-Abordagens possíveis: força silenciosa, intensidade contida, sensibilidade como poder, instinto estratégico.
+## ✨ FRASE ÉPICA — Para compartilhar no Instagram
+Estilo: {estilo_frase['instrucao']}
+A frase deve ser TÃO boa que qualquer pessoa queira postar como extensão de si.
+Deve ter RITMO, IMPACTO e VERDADE. Como uma tatuagem verbal.
+Conectada ao tema do dia mas UNIVERSAL o suficiente para ressoar com qualquer um.
 
-### CAMADA B — TENSÃO DO DIA (conflito que gera crescimento)
-Crie um pequeno dilema ORIGINAL baseado em:
-- Fase lunar + emoções do momento
-- Tema do dia: {tema_dia['foco']}
-- Fase de vida ({arquetipo['nome']}): desafios concretos
-O dilema deve ser NOVO a cada dia. Use situações cotidianas variadas.
-Sem tensão não há crescimento.
+## 🌊 FRASE DE VIBRAÇÃO — Essência energética do dia
+Baseada na energia do dia ({dia_semana['nome']}, {lua['fase']} em {lua['signo']}), crie uma frase curta que:
+- NÃO mencione planetas, lua, signos ou qualquer termo astrológico
+- Capture a ESSÊNCIA do que este dia pede
+- Possa ser de: inspiração, motivação, instrução prática, reflexão, humor inteligente
+- Funcione como um "recado do universo" em linguagem popular
+- Tom variável: pode ser séria, engraçada, provocativa, poética ou prática
 
-### CAMADA C — DIREÇÃO PRÁTICA (micro-ação clara)
-Uma ação ESPECÍFICA e ORIGINAL para hoje. Nunca genérica.
-Deve variar entre: comunicação, organização, coragem, descanso, confronto, criatividade, escuta.
-Ruim: "cuide de si" / "reflita sobre sua vida" / "resolva aquela conversa"
-
-### CAMADA D — FRASE DE IDENTIDADE (reforço de quem está se tornando)
-Reafirma quem {nome} está se tornando. Curta, poderosa, sem emoji.
-Deve ser ÚNICA a cada dia — nunca repita padrões.
-Ruim: "tenha um bom dia" / "tudo vai dar certo"
 {historico_bloco}
-## ❌ NUNCA faça:
+## ❌ PROIBIDO:
 {expressoes}
-- NUNCA use jargão astrológico exposto
-- NUNCA entregue previsões
-- NUNCA comece com "{nome}, hoje..." — VARIE!
-- NUNCA seja genérico disfarçado de personalização
-- NUNCA repita estrutura ou frases de dias anteriores
-- NUNCA pareça algoritmo — precisa soar orgânico e íntimo
-- NUNCA use as mesmas palavras-chave de dias anteriores
+- NUNCA use jargão astrológico, termos em hebraico ou linguagem técnica
+- NUNCA faça previsões
+- NUNCA comece com "{nome}, hoje..."
+- NUNCA soe como algoritmo, coach genérico ou horóscopo de revista
+- NUNCA repita aberturas, estruturas ou palavras-chave de dias anteriores
+- NUNCA use emojis na frase_epica ou frase_vibracao
 
-## ✅ COMO ESCREVER:
-- Linguagem humana, conflito interno, afirmação de potência, leve poesia
-- Fale como mentor lúcido, não como horóscopo
-- Varie: consciência, escolha, coragem, silêncio, movimento, verdade
-- A pessoa deve sentir que é ÚNICA, tem um CAMINHO e está EVOLUINDO
-- Varie SEMPRE a abertura (pergunta, metáfora, insight, conflito, nome)
+## ✅ COMO SER AUTÊNTICO:
+- Fale como alguém que CONHECE essa pessoa — não como quem leu um perfil
+- Surpreenda: ironia, humor, poesia, provocação, ternura — VARIE
+- A pessoa deve sentir que essa mensagem foi escrita SÓ PARA ELA
+- Use no máximo 1-2 emojis na mensagem (ou nenhum, dependendo do formato)
 
-## OUTPUT
-Responda APENAS com JSON válido, sem texto adicional:
+## OUTPUT — JSON VÁLIDO, sem texto adicional:
 {{
-  "espelho": "1-2 frases. Reconhecimento de identidade. Traduz astrologia em humanidade.",
-  "tensao": "1-2 frases. Dilema do dia. Conflito real que gera crescimento.",
-  "direcao": "1 frase. Micro-ação clara e específica para hoje.",
-  "frase_identidade": "1 frase curta. Reforço de quem a pessoa está se tornando. Sem emoji."
-}}
+  "mensagem": "Texto da mensagem no formato {formato['id']}. Use <p> para parágrafos e <strong>/<em> para destaques.",
+  "frase_epica": "Frase épica viral para compartilhar. Sem aspas, sem emoji. Máximo 15 palavras.",
+  "frase_vibracao": "Frase curta da essência do dia. Sem menção a astrologia. Máximo 12 palavras."
+}}"""
 
-Regras:
-- ESPELHO + TENSÃO + DIREÇÃO vão virar HTML de corpo da mensagem
-- FRASE_IDENTIDADE vira destaque visual separado (mantra do dia)
-- Total das 3 primeiras camadas: 5-8 linhas
-- 1-2 emojis estratégicos APENAS no espelho ou tensão
-- Frase_identidade: ZERO emojis, pode usar <strong> ou <em>"""
-
-    return prompt
+    return prompt, formato['id'], estilo_frase['id']
 
 
 # ============================================================================
@@ -817,12 +915,15 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                 except Exception:
                     pass
 
+                ctx_usado = existente.get('contexto_usado') or {}
                 return {
                     'id': existente['id'],
                     'html': existente.get('html', ''),
                     'frase': existente.get('frase', ''),
+                    'frase_vibracao': ctx_usado.get('frase_vibracao', ''),
                     'fonte': existente.get('fonte_inspiracao', ''),
                     'tom': existente.get('tom', ''),
+                    'formato': ctx_usado.get('formato', ''),
                     'podeRegenerar': (existente.get('regeneracoes_usadas', 0) or 0) < (existente.get('max_regeneracoes', 1) or 1),
                     'cached': True
                 }
@@ -869,7 +970,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
 
     fonte = _selecionar_fonte(contexto, lua, contexto.get('dataNascimento'), data_atual, fontes_anteriores)
     tom = _selecionar_tom(lua)
-    prompt = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, cruzamento_lunar, perfil_comp, historico)
+    prompt, formato_id, estilo_frase_id = _montar_prompt(contexto, lua, fonte, tom, data_atual, tipo, cruzamento_lunar, perfil_comp, historico)
 
     # ===== CHAMAR LLM COM REGRA POR PLANO =====
     if is_pago:
@@ -878,7 +979,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
             "model": OPENAI_MODEL,
             "fallback_provider": "groq",
             "fallback_model": GROQ_MODEL,
-            "temperature": 0.85,
+            "temperature": 0.9,
             "max_tokens": MAX_TOKENS
         }
         modelo_usado = OPENAI_MODEL
@@ -888,12 +989,12 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
             "model": GROQ_MODEL,
             "fallback_provider": "openai",
             "fallback_model": OPENAI_MODEL,
-            "temperature": 0.85,
+            "temperature": 0.9,
             "max_tokens": MAX_TOKENS
         }
         modelo_usado = GROQ_MODEL
 
-    logger.info(f"[MensagemDia v6.0] Gerando para user={user_id}, tipo={tipo}, fonte={fonte}, tom={tom['id']}, provider={llm_config['provider']}")
+    logger.info(f"[MensagemDia v7.0] Gerando para user={user_id}, tipo={tipo}, fonte={fonte}, tom={tom['id']}, formato={formato_id}, provider={llm_config['provider']}")
 
     gateway = LLMGateway.get_instance()
     start_time = datetime.now(pytz.utc)
@@ -906,7 +1007,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
 
     tempo_ms = int((datetime.now(pytz.utc) - start_time).total_seconds() * 1000)
 
-    # Parse JSON do LLM — v6.0 converte 4 camadas → {html, frase}
+    # Parse JSON do LLM — v7.0: {mensagem, frase_epica, frase_vibracao} ou fallback v6.0
     try:
         content = raw_content.strip()
         if content.startswith('```'):
@@ -916,14 +1017,26 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
     except json.JSONDecodeError:
         logger.error(f"[MensagemDia] JSON inválido do LLM: {raw_content[:200]}")
         parsed = {
-            'espelho': raw_content[:300],
-            'tensao': '',
-            'direcao': '',
-            'frase_identidade': ''
+            'mensagem': raw_content[:500],
+            'frase_epica': '',
+            'frase_vibracao': ''
         }
 
-    # Montar HTML a partir das 4 camadas (ou fallback para formato antigo)
-    if 'espelho' in parsed:
+    # Extrair dados — v7.0 (mensagem/frase_epica/frase_vibracao) ou fallback v6.0
+    frase_vibracao = ''
+    if 'mensagem' in parsed:
+        # v7.0: mensagem já vem como HTML pronto
+        html = parsed['mensagem']
+        if not html.strip().startswith('<'):
+            # Se LLM não usou tags HTML, envolver em <p>
+            paragrafos = [p.strip() for p in html.split('\n\n') if p.strip()]
+            if not paragrafos:
+                paragrafos = [p.strip() for p in html.split('\n') if p.strip()]
+            html = '<br>'.join(f"<p>{p}</p>" for p in paragrafos)
+        frase = parsed.get('frase_epica', '')
+        frase_vibracao = parsed.get('frase_vibracao', '')
+    elif 'espelho' in parsed:
+        # Fallback v6.0: 4 camadas
         partes = []
         if parsed.get('espelho'):
             partes.append(f"<p>{parsed['espelho']}</p>")
@@ -932,7 +1045,8 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         if parsed.get('direcao'):
             partes.append(f"<p><strong>{parsed['direcao']}</strong></p>")
         html = '<br>'.join(partes)
-        frase = parsed.get('frase_identidade', '')
+        frase = parsed.get('frase_identidade', parsed.get('frase_epica', ''))
+        frase_vibracao = parsed.get('frase_vibracao', '')
     else:
         # Fallback para formato antigo (html + frase)
         html = parsed.get('html', '')
@@ -962,8 +1076,11 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
                 'arquetipo': _obter_arquetipo_fase(contexto.get('idade'))['nome'],
                 'fonte': fonte,
                 'tom': tom['id'],
+                'formato': formato_id,
+                'estilo_frase': estilo_frase_id,
                 'cruzamentoLunar': cruzamento_lunar is not None,
-                'perfilComportamental': perfil_comp.get('predominante') if perfil_comp else None
+                'perfilComportamental': perfil_comp.get('predominante') if perfil_comp else None,
+                'frase_vibracao': frase_vibracao
             },
             'modelo_ia': modelo_usado,
             'tokens_usados': 0,
@@ -980,7 +1097,7 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         if save_resp.data:
             saved_id = save_resp.data[0].get('id')
 
-        logger.info(f"[MensagemDia v6.0] ✓ Salva com sucesso para user={user_id} (fonte={fonte}, tom={tom['id']})")
+        logger.info(f"[MensagemDia v7.0] ✓ Salva com sucesso para user={user_id} (fonte={fonte}, tom={tom['id']}, formato={formato_id})")
     except Exception as e:
         logger.error(f"[MensagemDia] Erro ao salvar: {e}")
 
@@ -988,8 +1105,10 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
         'id': saved_id,
         'html': html,
         'frase': frase,
+        'frase_vibracao': frase_vibracao,
         'fonte': fonte,
         'tom': tom['id'],
+        'formato': formato_id,
         'lua': {
             'fase': lua['fase'],
             'signo': lua['signo'],
@@ -1006,7 +1125,8 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
             'promptVersion': PROMPT_VERSION,
             'fonte': fonte,
             'tom': tom['id'],
-
+            'formato': formato_id,
+            'estilo_frase': estilo_frase_id
         }
     }
 
@@ -1018,8 +1138,10 @@ async def gerar_mensagem_para_usuario(user_id: Optional[str], action: str = "gen
 FALLBACK_MENSAGEM = {
     'html': '<p>O dia oferece oportunidades únicas para quem está atento.</p><br><p>Respire fundo, confie no processo e dê um passo de cada vez. Pequenas ações conscientes constroem grandes transformações. 🌟</p>',
     'frase': 'Cada dia é uma nova página — e você escolhe o que escrever nela.',
+    'frase_vibracao': 'Hoje o universo convida você a ser mais leve.',
     'fonte': 'fallback',
     'tom': 'afetuoso_acolhedor',
+    'formato': 'carta_pessoal',
     'cached': False,
     'isFallback': True
 }
