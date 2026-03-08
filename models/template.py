@@ -35,6 +35,7 @@ class InterpretationTemplate(BaseModel):
     id: uuid.UUID
     title: str
     description: Optional[str] = None
+    explicacao: Optional[str] = None
     module_relation: str = "mac"
     custom_key: str
     prompt_content: str
@@ -60,6 +61,7 @@ class TemplateCreate(BaseModel):
     """Model for creating a new template."""
     title: str
     description: Optional[str] = None
+    explicacao: Optional[str] = None
     module_relation: str = "mac"
     custom_key: str
     prompt_content: str
@@ -78,6 +80,7 @@ class TemplateUpdate(BaseModel):
     """Model for updating an existing template."""
     title: Optional[str] = None
     description: Optional[str] = None
+    explicacao: Optional[str] = None
     prompt_content: Optional[str] = None
     system_prompt: Optional[str] = None
     release_delay_days: Optional[int] = None

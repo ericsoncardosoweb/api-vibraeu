@@ -75,6 +75,21 @@ CONTEXTOS_PLANETAS = {
     "plutão": {"simbolismo": "Transformação, poder, morte/renascimento", "sefirah": "Daath — Portal de transformação", "tikun": "Morrer para o ego, renascer em consciência", "transitos": "Ciclo de 248 anos — transformações profundas"},
 }
 
+CONTEXTOS_CASAS = {
+    "casa_1": {"nome": "Casa 1 — Eu & Identidade", "sefirah": "Keter (A Coroa do Ser)", "regente_natural": "Marte/Áries", "tikun": "Expressar a essência autêntica sem máscara, coragem de ser quem se é", "temas": "Identidade, aparência, primeiras impressões, iniciativa, autoexpressão, corpo físico"},
+    "casa_2": {"nome": "Casa 2 — Recursos & Valores", "sefirah": "Chokmah (Sabedoria do Valor)", "regente_natural": "Vênus/Touro", "tikun": "Encontrar segurança interior, reconhecer o verdadeiro valor além do material", "temas": "Finanças, posses, talentos, autoestima, valores pessoais, recursos internos"},
+    "casa_3": {"nome": "Casa 3 — Mente & Troca", "sefirah": "Binah (Entendimento Comunicativo)", "regente_natural": "Mercúrio/Gêmeos", "tikun": "Comunicar com propósito, aprender a ouvir tanto quanto falar", "temas": "Comunicação, irmãos, vizinhos, aprendizado, mente racional, escritos, deslocamentos curtos"},
+    "casa_4": {"nome": "Casa 4 — Base & Ancestralidade", "sefirah": "Chesed (Misericórdia das Raízes)", "regente_natural": "Lua/Câncer", "tikun": "Curar padrões ancestrais, criar um lar interior seguro independente do externo", "temas": "Lar, família, ancestralidade, base emocional, final de vida, propriedades, mãe/pai"},
+    "casa_5": {"nome": "Casa 5 — Criação & Prazer", "sefirah": "Gevurah (Força Criativa)", "regente_natural": "Sol/Leão", "tikun": "Criar sem apego ao resultado, brilhar sem ofuscar, expressar alegria autêntica", "temas": "Criatividade, filhos, romance, prazer, jogos, hobbies, expressão artística, diversão"},
+    "casa_6": {"nome": "Casa 6 — Rotina & Saúde", "sefirah": "Tiferet (Beleza no Cotidiano)", "regente_natural": "Mercúrio/Virgem", "tikun": "Sacralizar o cotidiano, servir com amor sem se anular", "temas": "Saúde, trabalho diário, rotina, serviço, animais de estimação, hábitos, purificação"},
+    "casa_7": {"nome": "Casa 7 — Parcerias & Espelho", "sefirah": "Netzach (Vitória nas Relações)", "regente_natural": "Vênus/Libra", "tikun": "Ver o outro como espelho, manter identidade nas parcerias, equilibrar dar e receber", "temas": "Casamento, parcerias, contratos, inimigos declarados, relacionamentos, o outro como espelho"},
+    "casa_8": {"nome": "Casa 8 — Mudança & Desapego", "sefirah": "Hod (Glória na Transformação)", "regente_natural": "Plutão/Escorpião", "tikun": "Soltar o que já morreu, confiar no processo de transformação, renascer das cinzas", "temas": "Transformação, morte/renascimento, heranças, sexualidade, recursos compartilhados, mistérios, ocultismo"},
+    "casa_9": {"nome": "Casa 9 — Sabedoria & Busca", "sefirah": "Yesod (Fundamento da Fé)", "regente_natural": "Júpiter/Sagitário", "tikun": "Expandir com humildade, buscar verdade sem dogmatismo, ser eterno aprendiz", "temas": "Filosofia, ensino superior, viagens longas, espiritualidade, publicações, justiça, mestres"},
+    "casa_10": {"nome": "Casa 10 — Propósito & Legado", "sefirah": "Malkuth (Reino da Manifestação)", "regente_natural": "Saturno/Capricórnio", "tikun": "Construir legado com integridade, carregar responsabilidade com sabedoria", "temas": "Carreira, vocação, reputação, status social, conquistas, autoridade, legado, missão de vida"},
+    "casa_11": {"nome": "Casa 11 — Coletivo & Causas", "sefirah": "Chokmah Expandido (Sabedoria Coletiva)", "regente_natural": "Urano/Aquário", "tikun": "Equilibrar individualidade com pertencimento, servir ao coletivo mantendo a essência", "temas": "Amizades, grupos, causas sociais, sonhos, projetos futuros, inovação, comunidade, redes"},
+    "casa_12": {"nome": "Casa 12 — Alma & Transcendência", "sefirah": "Keter Oculto (A Coroa Invisível)", "regente_natural": "Netuno/Peixes", "tikun": "Conectar-se ao divino sem se perder, integrar sombras, dissolver o ego conscientemente", "temas": "Inconsciente, espiritualidade, isolamento, karma, autossabotagem, compaixão, sonhos, mistérios"},
+}
+
 
 # =============================================
 # PROMPT BUILDERS
@@ -175,10 +190,38 @@ Retorne APENAS um JSON válido com esta estrutura:
 }}"""
 
 
+def build_prompt_casa(chave: str) -> str:
+    ctx = CONTEXTOS_CASAS.get(chave.lower())
+    if not ctx:
+        raise ValueError(f"Casa não encontrada: {chave}")
+    
+    numero = chave.lower().replace('casa_', '')
+    
+    return f"""Gere uma interpretação astrológica cabalística completa para a {ctx['nome']}.
+
+Contexto cabalístico:
+- Sefirah: {ctx['sefirah']}
+- Regente natural: {ctx['regente_natural']}
+- Tikun: {ctx['tikun']}
+- Temas principais: {ctx['temas']}
+
+A interpretação deve explicar o que a Casa {numero} representa no mapa astral, qual seu papel na jornada evolutiva da alma, como ela influencia a vida cotidiana, e que aprendizados e práticas espirituais estão associados a esta casa.
+
+Retorne APENAS um JSON válido com esta estrutura:
+{{
+  "titulo": "{ctx['nome']} — [subtítulo criativo e evocativo com 3-5 palavras]",
+  "resumo": "[Frase-síntese de até 15 palavras que captura a essência desta casa astrológica]",
+  "leitura_geral": "<HTML com 2-3 parágrafos explicando o que a Casa {numero} representa, quais áreas da vida governa, como seus trânsitos e planetas residentes afetam o cotidiano. Use <p>, <strong>, <em> para formatação>",
+  "o_que_representa": "<HTML com 2-3 parágrafos sobre o significado cabalístico profundo. Qual sefirah está associada? Que tikun esta casa oferece? Quais são as lições espirituais e como trabalhar conscientemente com esta energia? Use <p>, <strong>, <em>>",
+  "frase": "[Frase inspiradora e profunda de até 25 palavras sobre a energia da Casa {numero}, que as pessoas queiram compartilhar. Estilo poético-filosófico, sem clichês]"
+}}"""
+
+
 PROMPT_BUILDERS = {
     "ciclo": build_prompt_ciclo,
     "lua": build_prompt_lua,
     "planeta": build_prompt_planeta,
+    "casa": build_prompt_casa,
 }
 
 
@@ -187,7 +230,7 @@ PROMPT_BUILDERS = {
 # =============================================
 
 class GenerateRequest(BaseModel):
-    tipo: str  # 'ciclo', 'lua', 'planeta'
+    tipo: str  # 'ciclo', 'lua', 'planeta', 'casa'
     chave: str  # 'capricórnio', 'nova_áries', 'sol'
 
 

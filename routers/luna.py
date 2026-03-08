@@ -38,11 +38,12 @@ def _traduzir_signo(signo):
 class LunaInsightRequest(BaseModel):
     """Requisição de insight da Luna."""
     user_id: str
-    tool_key: str  # 'roda_vida' | 'perfil_comportamental' | 'diario'
+    tool_key: str  # 'roda_vida' | 'perfil_comportamental' | 'diario' | 'habitos'
     profile: Optional[Dict[str, Any]] = None
     mac: Optional[Dict[str, Any]] = None
     tool_data: Optional[Dict[str, Any]] = None
     entries: Optional[List[Dict[str, Any]]] = None  # Para diário
+    habits_data: Optional[List[Dict[str, Any]]] = None  # Para hábitos
     period_days: Optional[int] = None
     periodo_label: Optional[str] = None
     assessment_id: Optional[str] = None
@@ -249,10 +250,119 @@ Gere um relatório em HTML com:
 Seja empático e conecte padrões que {nome} pode não ter notado."""
 
 
+def _fetch_habits_from_supabase(user_id: str, period_days: int) -> dict:
+    """Busca hábitos, check-ins e entradas do diário do Supabase como fallback."""
+    try:
+        from datetime import datetime, timedelta
+        supabase = get_supabase_client()
+        
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=period_days)).strftime('%Y-%m-%d')
+        
+        # Buscar hábitos ativos
+        habits_result = supabase.table('goals') \
+            .select('id, title, category_id, habit_frequency, current_streak, best_streak, created_at') \
+            .eq('user_id', user_id) \
+            .eq('goal_type', 'habit') \
+            .eq('status', 'active') \
+            .execute()
+        
+        habits = habits_result.data if habits_result.data else []
+        
+        # Buscar check-ins do período
+        checkins_result = supabase.table('habit_check_ins') \
+            .select('goal_id, check_in_date, created_at') \
+            .in_('goal_id', [h['id'] for h in habits]) \
+            .gte('check_in_date', start_date) \
+            .lte('check_in_date', end_date) \
+            .order('check_in_date', desc=False) \
+            .execute()
+        
+        checkins = checkins_result.data if checkins_result.data else []
+        
+        # Buscar diário do mesmo período
+        diary_result = supabase.table('daily_entries') \
+            .select('entry_date, mood, mood_label, emotions, factors, notes') \
+            .eq('user_id', user_id) \
+            .gte('entry_date', start_date) \
+            .lte('entry_date', end_date) \
+            .order('entry_date', desc=False) \
+            .execute()
+        
+        diary = diary_result.data if diary_result.data else []
+        
+        logger.info(f"[Luna] Hábitos fallback: {len(habits)} hábitos, {len(checkins)} check-ins, {len(diary)} diário entries")
+        
+        return {
+            'habits': habits,
+            'checkins': checkins,
+            'diary_entries': diary
+        }
+    except Exception as e:
+        logger.error(f"[Luna] Erro ao buscar dados de hábitos do Supabase: {e}")
+        return {'habits': [], 'checkins': [], 'diary_entries': []}
+
+
+def _build_prompt_habitos(req: LunaInsightRequest) -> str:
+    """Prompt para Insights de Hábitos."""
+    nome = req.profile.get('nome', '') if req.profile else 'o usuário'
+    period = req.period_days or 30
+    periodo_label = req.periodo_label or f'últimos {period} dias'
+    
+    # Extrair dados — do payload ou fallback Supabase
+    habits_data = req.habits_data
+    diary_entries = req.entries
+    
+    if not habits_data or len(habits_data) == 0:
+        logger.warning(f"[Luna] Hábitos: dados vazios no payload, buscando do Supabase para user={req.user_id}")
+        fallback = _fetch_habits_from_supabase(req.user_id, period)
+        habits_data = fallback.get('habits_with_checkins', habits_data or [])
+        if not diary_entries:
+            diary_entries = fallback.get('diary_entries', [])
+    
+    logger.info(f"[Luna] Hábitos: {len(habits_data) if habits_data else 0} hábitos para processar")
+    
+    mac_ctx = _build_mac_context(req.mac)
+    
+    habits_text = json.dumps(habits_data[:30] if habits_data else [], ensure_ascii=False, indent=2)
+    diary_text = json.dumps(diary_entries[:50] if diary_entries else [], ensure_ascii=False, indent=2)
+    
+    return f"""Analise os hábitos e padrões de rotina de {nome} da {periodo_label} e gere um relatório de insights profundo e personalizado.
+
+DADOS DOS HÁBITOS (hábitos ativos com check-ins do período):
+{habits_text}
+
+REGISTROS DO DIÁRIO DE BORDO DO MESMO PERÍODO (para cruzamento):
+{diary_text}
+
+{mac_ctx}
+
+INSTRUÇÕES DE ANÁLISE:
+- Analise os padrões de check-in por DIA DA SEMANA (ex: "Você completa mais hábitos nas segundas e terças")
+- Identifique se os check-ins são feitos ao longo do dia ou acumulados no final (olhe os timestamps created_at vs check_in_date)
+- Cruze com o diário: nos dias de humor alto, mais hábitos foram completados? E nos dias difíceis?
+- Identifique quais categorias de vida (saúde, finanças, etc) têm maior consistência
+- Analise os streaks: quais hábitos têm melhor sequência e o que isso revela
+- Identifique hábitos "esquecidos" ou com baixa aderência
+- Use um tom CONSTRUTIVO e MOTIVADOR — nunca crítico. Celebre conquistas antes de sugerir melhorias
+
+Gere um relatório em HTML com:
+1. <h3>Seu Perfil de Hábitos</h3> — Que tipo de pessoa você é em relação a rotinas? (baseado nos dados reais)
+2. <h3>Padrões Identificados</h3> — Dias da semana, horários, correlações com humor do diário
+3. <h3>Destaques Positivos</h3> — Hábitos com melhor consistência, streaks impressionantes, evolução
+4. <h3>Oportunidades de Crescimento</h3> — Hábitos com baixa aderência, sugestões construtivas
+5. <h3>Conexão Corpo-Mente</h3> — Cruzamento hábitos x humor do diário, o que os dados revelam
+6. <h3>Próximos Passos</h3> — 3-5 ações práticas e motivadoras baseadas na análise
+7. <blockquote><p><strong>Frase motivacional personalizada sobre disciplina e evolução</strong></p></blockquote>
+
+Seja específico e use os dados reais. Não faça análises genéricas. Refira-se a hábitos específicos pelo nome."""
+
+
 PROMPT_BUILDERS = {
     'roda_vida': _build_prompt_roda_vida,
     'perfil_comportamental': _build_prompt_perfil,
     'diario': _build_prompt_diario,
+    'habitos': _build_prompt_habitos,
 }
 
 
