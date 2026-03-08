@@ -47,12 +47,14 @@ async def list_users(
         supabase = get_supabase_client()
         
         # Query com contagem
+        # NOTA: schema real usa "name" (não "nome"), "birth_date" (não "data_nascimento")
+        # Ver docs/supabase/SCHEMA_PROFILES.md para referência
         query = supabase.table("profiles") \
             .select(
-                "id, nome, email, plano, is_admin, admin_role, "
+                "id, name, email, plano, is_admin, admin_role, "
                 "creditos, centelhas, plan_credits_balance, extra_credits_balance, "
                 "bloqueado, created_at, updated_at, asaas_customer_id, "
-                "data_nascimento, onboarding_completed",
+                "birth_date, subscription_status",
                 count="exact"
             )
         
@@ -60,7 +62,7 @@ async def list_users(
         if plano:
             query = query.eq("plano", plano)
         if busca:
-            query = query.or_(f"nome.ilike.%{busca}%,email.ilike.%{busca}%")
+            query = query.or_(f"name.ilike.%{busca}%,email.ilike.%{busca}%")
         if bloqueado is not None:
             query = query.eq("bloqueado", bloqueado)
         
@@ -73,9 +75,16 @@ async def list_users(
         
         result = query.execute()
         
+        # Mapear "name" → "nome" para manter compatibilidade com frontend
+        data = []
+        for row in (result.data or []):
+            row["nome"] = row.pop("name", row.get("nome", ""))
+            row["data_nascimento"] = row.pop("birth_date", None)
+            data.append(row)
+        
         return {
             "success": True,
-            "data": result.data,
+            "data": data,
             "total": result.count or 0,
             "page": page,
             "limit": limit
@@ -120,10 +129,15 @@ async def get_user(user_id: str):
             .limit(10) \
             .execute()
         
+        # Mapear campo "name" para "nome" (compatibilidade frontend)
+        profile_data = profile_res.data
+        if profile_data and "name" in profile_data:
+            profile_data["nome"] = profile_data.pop("name", "")
+        
         return {
             "success": True,
             "data": {
-                "profile": profile_res.data,
+                "profile": profile_data,
                 "assinatura": assinatura_res.data[0] if assinatura_res.data else None,
                 "payments": pagamentos_res.data or []
             }
@@ -185,7 +199,7 @@ async def adjust_credits(user_id: str, data: CreditAdjustRequest):
         
         # Buscar saldo atual
         profile = supabase.table("profiles") \
-            .select("centelhas, nome, email") \
+            .select("centelhas, name, email") \
             .eq("id", user_id) \
             .single() \
             .execute()
