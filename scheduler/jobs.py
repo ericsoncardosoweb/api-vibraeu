@@ -259,26 +259,6 @@ async def generate_daily_messages_job():
         logger.error(f"[MensagemDia] Erro no job de geração: {e}")
 
 
-async def generate_story_backgrounds_job():
-    """
-    Gera backgrounds de story com IA (DALL-E 3).
-    Roda semanalmente (segunda às 05:00 UTC = 02:00 BRT).
-    Gera 5 imagens com temas variados.
-    """
-    logger.info("[StoryBG] Iniciando geração semanal de backgrounds...")
-    
-    try:
-        from services.story_backgrounds import generate_weekly_backgrounds
-        
-        result = await generate_weekly_backgrounds(count=5)
-        
-        if result.get("success"):
-            logger.info(f"[StoryBG] ✅ Geração completa: {result.get('generated', 0)} backgrounds")
-        else:
-            logger.error(f"[StoryBG] ❌ Falha na geração: {result.get('error', 'unknown')}")
-            
-    except Exception as e:
-        logger.error(f"[StoryBG] Erro no job de geração: {e}")
 
 
 def start_scheduler():
@@ -329,21 +309,14 @@ def start_scheduler():
         replace_existing=True
     )
     
-    # Job 5: Geração semanal de story backgrounds (segunda às 05:00 UTC = 02:00 BRT)
-    _scheduler.add_job(
-        generate_story_backgrounds_job,
-        trigger=CronTrigger(day_of_week='mon', hour=5, minute=0),
-        id="generate_story_backgrounds",
-        name="Weekly Story Backgrounds Generation",
-        replace_existing=True
-    )
+
     
     _scheduler.start()
     _is_running = True
     
     logger.info(
         f"Scheduler started with {settings.scheduler_interval_seconds}s interval "
-        f"+ monthly centelhas + daily inactive suspension + daily messages + weekly story backgrounds"
+        f"+ monthly centelhas + daily inactive suspension + daily messages"
     )
 
 

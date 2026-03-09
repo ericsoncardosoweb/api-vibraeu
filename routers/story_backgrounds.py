@@ -5,6 +5,7 @@ Endpoints for listing and generating AI story backgrounds.
 
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
+from typing import List, Optional
 
 router = APIRouter()
 
@@ -32,26 +33,52 @@ async def get_story_backgrounds(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/admin/story-backgrounds/themes")
+async def get_themes_catalog():
+    """
+    Return available themes and styles for the admin generation modal.
+    """
+    try:
+        from services.story_backgrounds import get_available_themes
+        
+        themes = get_available_themes()
+        return {"success": True, "themes": themes}
+    except Exception as e:
+        logger.error(f"[StoryBG Router] Themes catalog error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/admin/generate-story-backgrounds")
 async def trigger_generate_backgrounds(
     data: dict = None
 ):
     """
     Manually trigger story background generation.
+    Accepts specific styles selected by admin.
     Protected by API key (handled by middleware).
     """
     try:
-        from services.story_backgrounds import generate_weekly_backgrounds
-        
-        count = 5
-        if data and isinstance(data, dict):
-            count = data.get("count", 5)
-        
-        logger.info(f"[StoryBG Router] Manual trigger: generating {count} backgrounds")
-        
-        result = await generate_weekly_backgrounds(count=count)
-        
-        return result
+        if data and data.get("styles"):
+            # New flow: admin-selected styles
+            from services.story_backgrounds import generate_selected_backgrounds
+            
+            styles = data.get("styles", [])
+            
+            logger.info(f"[StoryBG Router] Admin selected generation: {len(styles)} styles")
+            
+            result = await generate_selected_backgrounds(selected_styles=styles)
+            return result
+        else:
+            # Legacy: random generation
+            from services.story_backgrounds import generate_weekly_backgrounds
+            
+            count = 5
+            if data and isinstance(data, dict):
+                count = data.get("count", 5)
+            
+            logger.info(f"[StoryBG Router] Legacy trigger: generating {count} backgrounds")
+            result = await generate_weekly_backgrounds(count=count)
+            return result
         
     except Exception as e:
         logger.error(f"[StoryBG Router] Generation error: {e}")
@@ -85,21 +112,10 @@ async def get_backgrounds_stats():
             .limit(1) \
             .execute()
         
-        # Check if enabled
-        setting_result = supabase.table("system_settings") \
-            .select("value") \
-            .eq("key", "story_bg_generation_enabled") \
-            .execute()
-        
-        enabled = True
-        if setting_result.data:
-            enabled = setting_result.data[0].get("value", "true") == "true"
-        
         return {
             "success": True,
             "active_count": active_result.count or 0,
             "total_count": total_result.count or 0,
-            "enabled": enabled,
             "last_generated": last_result.data[0] if last_result.data else None
         }
         

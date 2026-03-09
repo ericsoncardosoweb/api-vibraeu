@@ -202,6 +202,88 @@ THEME_PROMPTS = {
             "prompt": "Enchanted cosmic garden with glowing flowers and plants from different galaxies, floating luminous seeds, ethereal mist, vibrant colors against dark cosmic background, peaceful beauty, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
         },
     ],
+    "elementos": [
+        {
+            "style": "elemento_fogo",
+            "prompt": "Primordial Fire element in cosmic space, swirling flames forming sacred spirals, molten lava rivers in starfield, intense orange red and gold energy radiating outward, passionate transformative force, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "elemento_terra",
+            "prompt": "Ancient Earth element in cosmic space, towering crystal mountains emerging from cosmic soil, roots of light connecting deep underground, emerald green and brown tones with golden veins, grounding stability energy, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "elemento_ar",
+            "prompt": "Ethereal Air element in cosmic space, swirling winds of light forming tornado spirals through clouds of stardust, feathers of energy floating freely, soft lavender and sky blue tones, intellectual freedom energy, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "elemento_agua",
+            "prompt": "Deep Water element in cosmic space, cosmic ocean waves merging with nebula, bioluminescent depths revealing ancient mysteries, flowing liquid starlight, deep teal and sapphire blue tones, emotional intuitive energy, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+    ],
+    "aspectos": [
+        {
+            "style": "aspecto_conjuncao",
+            "prompt": "Celestial Conjunction aspect, two brilliant cosmic spheres merging into one unified light source, fusion of energies creating powerful golden glow, sacred union symbolism, radiant beams spreading outward, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "aspecto_oposicao",
+            "prompt": "Celestial Opposition aspect, two cosmic bodies facing each other across vast cosmic space, tension and balance between light and shadow, red and blue energies pulling and pushing, dramatic polarity, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "aspecto_trigono",
+            "prompt": "Celestial Trine aspect, three cosmic points forming perfect luminous triangle in space, harmonious energy flowing between them, soft golden and emerald green streams of light, effortless cosmic harmony, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "aspecto_quadratura",
+            "prompt": "Celestial Square aspect, four cosmic energies at sharp angles creating dynamic tension, electric bolts between the points, deep crimson and violet storm energies, challenging but transformative cosmic power, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "aspecto_sextil",
+            "prompt": "Celestial Sextile aspect, two cosmic lights connected by a gentle bridge of stardust, opportunities flowing between them, soft pastel rainbow energy streams, subtle supportive cosmic connection, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+    ],
+    "planetas": [
+        {
+            "style": "planeta_sol",
+            "prompt": "Majestic Sun as cosmic deity radiating infinite golden light in deep space, solar flares forming crown of fire, warm amber and white core energy, life-giving vital force, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_lua",
+            "prompt": "Mystical Moon goddess in cosmic space, all moon phases arrayed in luminous arc, silver and pearl light reflecting on cosmic waters below, feminine intuitive energy, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_mercurio",
+            "prompt": "Swift Mercury planet with wings of light in cosmic space, streams of information and communication flowing as golden threads, quicksilver surface reflecting cosmos, intellectual energy, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_venus",
+            "prompt": "Beautiful Venus planet glowing with rose gold and soft pink light in cosmic space, surrounded by rings of flowers made of starlight, love and beauty energy radiating outward, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_marte",
+            "prompt": "Fierce Mars planet blazing with crimson energy in cosmic space, warrior spirit fire surrounding it, powerful red and orange volcanic surface, determination and action force, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_jupiter",
+            "prompt": "Magnificent Jupiter giant planet in cosmic space, swirling bands of amber and cream gas, expansive energy spreading outward, abundant golden light blessing cosmos, wisdom and growth force, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_saturno",
+            "prompt": "Ancient Saturn planet with luminous crystalline rings in cosmic space, disciplined geometric ice formations orbiting, deep indigo and silver tones, structured wisdom and time energy, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_urano",
+            "prompt": "Revolutionary Uranus planet tilted on its axis in cosmic space, electric blue and cyan energy bolts radiating, unconventional tilted rings of light, innovation and awakening cosmic force, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_netuno",
+            "prompt": "Dreamy Neptune planet dissolving into cosmic mist, deep ocean blue and violet swirls merging with nebula, mystical underwater cosmic realm, spiritual transcendence and imagination energy, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+        {
+            "style": "planeta_plutao",
+            "prompt": "Mysterious Pluto planet in the darkest depths of cosmic space, transformative phoenix fire emerging from its surface, deep magenta and black tones, death and rebirth cycle energy, portrait orientation 9:16, ultra detailed digital art. NO text, NO letters, NO words, NO numbers."
+        },
+    ],
 }
 
 
@@ -491,3 +573,170 @@ async def list_active_backgrounds(limit: int = 30) -> List[Dict]:
     except Exception as e:
         logger.error(f"[StoryBG] Error listing backgrounds: {e}")
         return []
+
+
+# ── Theme Catalog Labels ─────────────────────────────────────────────────────
+
+THEME_LABELS = {
+    "signos": {"label": "Signos", "emoji": "♈", "description": "Constelações dos 12 signos do zodíaco"},
+    "lua": {"label": "Lua", "emoji": "🌙", "description": "Fases e cenários lunares"},
+    "cabala": {"label": "Cabala", "emoji": "✡", "description": "Geometria sagrada e árvore da vida"},
+    "ceu": {"label": "Céu", "emoji": "🌌", "description": "Auroras, Via Láctea e fenômenos celestes"},
+    "inspiracao": {"label": "Inspiração", "emoji": "🌸", "description": "Símbolos de transformação e beleza"},
+    "elementos": {"label": "Elementos", "emoji": "🔥", "description": "Fogo, Terra, Ar e Água"},
+    "aspectos": {"label": "Aspectos", "emoji": "⭐", "description": "Conjunção, Oposição, Trígono, etc."},
+    "planetas": {"label": "Planetas", "emoji": "🪐", "description": "Sol, Lua, Mercúrio a Plutão"},
+}
+
+STYLE_LABELS = {
+    # Signos
+    "nebulosa_aries": "Áries", "nebulosa_touro": "Touro", "nebulosa_gemeos": "Gêmeos",
+    "nebulosa_cancer": "Câncer", "nebulosa_leao": "Leão", "nebulosa_virgem": "Virgem",
+    "nebulosa_libra": "Libra", "nebulosa_escorpiao": "Escorpião", "nebulosa_sagitario": "Sagitário",
+    "nebulosa_capricornio": "Capricórnio", "nebulosa_aquario": "Aquário", "nebulosa_peixes": "Peixes",
+    # Lua
+    "lua_cheia_oceano": "Lua Cheia", "lua_crescente_floresta": "Lua Crescente",
+    "lua_nova_cosmos": "Lua Nova", "lua_minguante_deserto": "Lua Minguante",
+    "lua_sangue": "Lua de Sangue", "lua_azul": "Lua Azul",
+    "lua_montanha": "Lua na Montanha", "lua_jardim": "Lua no Jardim",
+    # Cabala
+    "arvore_vida_cosmica": "Árvore da Vida", "flor_vida": "Flor da Vida",
+    "merkaba_luz": "Merkaba", "geometria_metatron": "Cubo de Metatron",
+    "portal_cabalistico": "Portal Cabalístico", "sephirot_dourado": "Sephirot",
+    # Céu
+    "aurora_boreal_verde": "Aurora Boreal", "via_lactea": "Via Láctea",
+    "por_do_sol_cosmico": "Pôr do Sol", "nuvens_douradas": "Nuvens Douradas",
+    "ceu_estrelado_deserto": "Céu Estrelado", "tempestade_cosmica": "Tempestade Cósmica",
+    "nuvens_iridescentes": "Nuvens Iridescentes", "supernova_ceu": "Supernova",
+    # Inspiração
+    "lotus_cosmica": "Lótus Cósmica", "borboleta_transformacao": "Borboleta",
+    "caminho_luz": "Caminho de Luz", "cristal_energia": "Cristal",
+    "fenix_renascimento": "Fênix", "mandala_cosmica": "Mandala",
+    "oceano_estrelas": "Oceano de Estrelas", "jardim_cosmico": "Jardim Cósmico",
+    # Elementos
+    "elemento_fogo": "Fogo", "elemento_terra": "Terra",
+    "elemento_ar": "Ar", "elemento_agua": "Água",
+    # Aspectos
+    "aspecto_conjuncao": "Conjunção", "aspecto_oposicao": "Oposição",
+    "aspecto_trigono": "Trígono", "aspecto_quadratura": "Quadratura",
+    "aspecto_sextil": "Sextil",
+    # Planetas
+    "planeta_sol": "Sol", "planeta_lua": "Lua", "planeta_mercurio": "Mercúrio",
+    "planeta_venus": "Vênus", "planeta_marte": "Marte", "planeta_jupiter": "Júpiter",
+    "planeta_saturno": "Saturno", "planeta_urano": "Urano",
+    "planeta_netuno": "Netuno", "planeta_plutao": "Plutão",
+}
+
+
+def get_available_themes() -> List[Dict]:
+    """
+    Return full theme catalog for admin UI.
+    Each theme includes its styles with labels and used/available status.
+    """
+    themes = []
+    for theme_key, prompts in THEME_PROMPTS.items():
+        meta = THEME_LABELS.get(theme_key, {"label": theme_key, "emoji": "✨", "description": ""})
+        styles = []
+        for p in prompts:
+            styles.append({
+                "style": p["style"],
+                "label": STYLE_LABELS.get(p["style"], p["style"]),
+            })
+        themes.append({
+            "key": theme_key,
+            "label": meta["label"],
+            "emoji": meta["emoji"],
+            "description": meta["description"],
+            "styles": styles,
+            "count": len(styles),
+        })
+    return themes
+
+
+async def generate_selected_backgrounds(
+    selected_styles: List[str],
+) -> Dict:
+    """
+    Generate backgrounds for specific admin-selected styles.
+    
+    Args:
+        selected_styles: List of style keys to generate (e.g. ["nebulosa_aries", "elemento_fogo"])
+    
+    Returns:
+        Dict with results per item for progress tracking.
+    """
+    logger.info(f"[StoryBG] 🎨 Admin manual generation: {len(selected_styles)} items")
+    
+    settings = get_settings()
+    
+    if not settings.openai_api_key:
+        return {"success": False, "error": "OpenAI API key not configured"}
+    
+    bunny = get_bunny_storage()
+    if not bunny:
+        return {"success": False, "error": "Bunny Storage not available"}
+    
+    try:
+        from services.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+    except Exception as e:
+        return {"success": False, "error": f"Database error: {e}"}
+    
+    # Build lookup from all prompts
+    all_prompts = _get_all_prompts_flat()
+    prompt_map = {p["style"]: p for p in all_prompts}
+    
+    # Filter to requested styles
+    to_generate = []
+    for style_key in selected_styles:
+        if style_key in prompt_map:
+            to_generate.append(prompt_map[style_key])
+        else:
+            logger.warning(f"[StoryBG] Style not found: {style_key}")
+    
+    if not to_generate:
+        return {"success": False, "error": "Nenhum estilo válido selecionado"}
+    
+    # Generate each
+    results = []
+    generated_count = 0
+    error_count = 0
+    
+    for i, prompt_info in enumerate(to_generate):
+        item_result = {
+            "index": i,
+            "total": len(to_generate),
+            "theme": prompt_info["theme"],
+            "style": prompt_info["style"],
+            "label": STYLE_LABELS.get(prompt_info["style"], prompt_info["style"]),
+            "theme_label": THEME_LABELS.get(prompt_info["theme"], {}).get("label", prompt_info["theme"]),
+        }
+        
+        result = await generate_single_background(prompt_info, settings, bunny, supabase)
+        
+        if result:
+            item_result["success"] = True
+            item_result["image_url"] = result.get("image_url")
+            item_result["thumb_url"] = result.get("thumb_url")
+            generated_count += 1
+        else:
+            item_result["success"] = False
+            error_count += 1
+        
+        results.append(item_result)
+        
+        # Rate limit between DALL-E calls
+        if i < len(to_generate) - 1:
+            await asyncio.sleep(3)
+    
+    summary = {
+        "success": True,
+        "generated": generated_count,
+        "errors": error_count,
+        "total_requested": len(to_generate),
+        "results": results,
+    }
+    
+    logger.info(f"[StoryBG] 🎉 Admin generation complete: {generated_count}/{len(to_generate)}")
+    return summary
+

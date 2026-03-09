@@ -20,7 +20,6 @@ class UserUpdateRequest(BaseModel):
     plano: Optional[str] = None
     admin_role: Optional[str] = None
     is_admin: Optional[bool] = None
-    bloqueado: Optional[bool] = None
     centelhas: Optional[int] = None
     creditos: Optional[int] = None
 
@@ -40,7 +39,7 @@ async def list_users(
     limit: int = Query(20, ge=1, le=100),
     busca: Optional[str] = None,
     plano: Optional[str] = None,
-    bloqueado: Optional[bool] = None
+    bloqueado: Optional[bool] = None,
 ):
     """Lista todos os perfis com paginação, busca e filtros."""
     try:
@@ -53,7 +52,7 @@ async def list_users(
             .select(
                 "id, name, email, plano, is_admin, admin_role, "
                 "creditos, centelhas, plan_credits_balance, extra_credits_balance, "
-                "bloqueado, created_at, updated_at, asaas_customer_id, "
+                "created_at, updated_at, asaas_customer_id, "
                 "birth_date, subscription_status",
                 count="exact"
             )
@@ -64,7 +63,8 @@ async def list_users(
         if busca:
             query = query.or_(f"name.ilike.%{busca}%,email.ilike.%{busca}%")
         if bloqueado is not None:
-            query = query.eq("bloqueado", bloqueado)
+            # Campo 'bloqueado' planejado mas não existe no schema ainda
+            pass
         
         # Paginação
         offset = (page - 1) * limit
@@ -166,7 +166,8 @@ async def update_user(user_id: str, data: UserUpdateRequest):
         if data.is_admin is not None:
             update_data["is_admin"] = data.is_admin
         if data.bloqueado is not None:
-            update_data["bloqueado"] = data.bloqueado
+            # Campo 'bloqueado' planejado mas não existe no schema ainda
+            pass
         if data.centelhas is not None:
             update_data["centelhas"] = data.centelhas
         if data.creditos is not None:
