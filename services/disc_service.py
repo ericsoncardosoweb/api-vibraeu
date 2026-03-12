@@ -163,50 +163,72 @@ Retorne um JSON com esta estrutura exata:
 # ============================================================================
 
 def _format_mac_resumo(mac_data: dict) -> str:
-    """Formata os dados do MAC em texto legível para o prompt."""
+    """Formata os dados do MAC em texto legível para o prompt.
+    
+    Formato da tabela mapas_astrais:
+    - sol_signo, lua_signo, ascendente_signo, mc_signo: colunas diretas (ex: "Cap", "Leo")
+    - planetas: JSONB array [{planeta: "Sun", signo: "Cap", grau: 280.5, casa: 7}, ...]
+    - casas: JSONB array [{casa: 1, signo: "Gem", grau: 70.3}, ...]
+    - aspectos: JSONB array [{planeta1: "Sun", planeta2: "Moon", aspecto: "trine", ...}, ...]
+    """
     if not mac_data:
         return "MAC não disponível para este usuário."
 
     linhas = []
 
-    # Posições planetárias
-    positions = mac_data.get("positions", {})
-    if positions:
-        linhas.append("### Posições Planetárias")
-        for planet_key, data in positions.items():
+    # Signos principais (colunas diretas)
+    sol = mac_data.get("sol_signo")
+    lua = mac_data.get("lua_signo")
+    asc = mac_data.get("ascendente_signo")
+    mc = mac_data.get("mc_signo")
+
+    if sol or lua or asc:
+        linhas.append("### Trindade Astrológica")
+        if sol:
+            linhas.append(f"- **Sol** em {SIGNOS.get(sol, sol)} — Essência, identidade central")
+        if lua:
+            linhas.append(f"- **Lua** em {SIGNOS.get(lua, lua)} — Mundo emocional, inconsciente")
+        if asc:
+            linhas.append(f"- **Ascendente** em {SIGNOS.get(asc, asc)} — Máscara social, como se apresenta")
+        if mc:
+            linhas.append(f"- **Meio do Céu** em {SIGNOS.get(mc, mc)} — Propósito, vocação")
+
+    # Posições planetárias (do array JSONB)
+    planetas = mac_data.get("planetas", [])
+    if planetas and isinstance(planetas, list):
+        linhas.append("\n### Posições Planetárias")
+        for p in planetas:
+            if not isinstance(p, dict):
+                continue
+            planet_key = p.get("planeta", "")
             planet_name = PLANETAS.get(planet_key, planet_key)
-            if isinstance(data, dict):
-                sign_key = data.get("sign", "")
-                sign_name = SIGNOS.get(sign_key, sign_key)
-                house = data.get("house", "")
+            sign_key = p.get("signo", "")
+            sign_name = SIGNOS.get(sign_key, sign_key)
+            house = p.get("casa", "")
+            if house:
                 linhas.append(f"- {planet_name} em {sign_name} (Casa {house})")
-            elif isinstance(data, str):
-                sign_name = SIGNOS.get(data, data)
+            else:
                 linhas.append(f"- {planet_name} em {sign_name}")
 
-    # Ascendente
-    asc = mac_data.get("ascendant", mac_data.get("asc", ""))
-    if asc:
-        asc_name = SIGNOS.get(asc, asc) if isinstance(asc, str) else asc
-        linhas.append(f"\n### Ascendente: {asc_name}")
-
-    # Elemento dominante
-    dominant = mac_data.get("dominant_element", mac_data.get("dominante", ""))
-    if dominant:
-        linhas.append(f"### Elemento Dominante: {dominant}")
-
     # Aspectos
-    aspects = mac_data.get("aspects", [])
-    if aspects and isinstance(aspects, list):
+    aspectos = mac_data.get("aspectos", [])
+    if aspectos and isinstance(aspectos, list):
         linhas.append("\n### Aspectos Relevantes")
-        for asp in aspects[:6]:
-            if isinstance(asp, dict):
-                p1 = PLANETAS.get(asp.get("planet1", ""), asp.get("planet1", ""))
-                p2 = PLANETAS.get(asp.get("planet2", ""), asp.get("planet2", ""))
-                tipo = asp.get("aspect", asp.get("type", ""))
+        for asp in aspectos[:8]:  # Limitar a 8 aspectos mais relevantes
+            if not isinstance(asp, dict):
+                continue
+            p1_key = asp.get("planeta1", asp.get("planet1", ""))
+            p2_key = asp.get("planeta2", asp.get("planet2", ""))
+            p1 = PLANETAS.get(p1_key, p1_key)
+            p2 = PLANETAS.get(p2_key, p2_key)
+            tipo = asp.get("aspecto", asp.get("aspect", asp.get("type", "")))
+            if p1 and p2 and tipo:
                 linhas.append(f"- {p1} ↔ {p2}: {tipo}")
 
-    return "\n".join(linhas) if linhas else "Dados do MAC parcialmente disponíveis."
+    if not linhas:
+        return "Dados do MAC parcialmente disponíveis — sem posições planetárias."
+
+    return "\n".join(linhas)
 
 
 async def _buscar_dados_complementares(user_id: str) -> Dict[str, Any]:
@@ -215,14 +237,17 @@ async def _buscar_dados_complementares(user_id: str) -> Dict[str, Any]:
     dados = {"mac": None, "perfil_comportamental": None}
 
     try:
-        # Buscar MAC (natal chart data)
-        mac_res = supabase.table("profiles") \
-            .select("natal_chart_data") \
-            .eq("id", user_id) \
+        # Buscar MAC da tabela mapas_astrais (1 mapa por usuario)
+        mac_res = supabase.table("mapas_astrais") \
+            .select("sol_signo, lua_signo, ascendente_signo, mc_signo, planetas, casas, aspectos") \
+            .eq("user_id", user_id) \
             .maybe_single() \
             .execute()
-        if mac_res.data and mac_res.data.get("natal_chart_data"):
-            dados["mac"] = mac_res.data["natal_chart_data"]
+        if mac_res.data:
+            dados["mac"] = mac_res.data
+            logger.info(f"[DISC] MAC encontrado: Sol={mac_res.data.get('sol_signo')}, Lua={mac_res.data.get('lua_signo')}, Asc={mac_res.data.get('ascendente_signo')}")
+        else:
+            logger.warning(f"[DISC] MAC não encontrado para user_id={user_id}")
     except Exception as e:
         logger.warning(f"[DISC] Erro ao buscar MAC: {e}")
 
