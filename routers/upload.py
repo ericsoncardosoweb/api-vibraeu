@@ -375,3 +375,94 @@ async def generate_cover_art(data: dict):
         logger.error(f"[CoverArt] ❌ ERRO INESPERADO após {elapsed:.1f}s — user={user_id} — {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao gerar capa: {str(e)}")
 
+
+@router.post("/generate-image")
+async def generate_image(data: dict):
+    """
+    Gera uma imagem genérica com DALL-E 3 a partir de um prompt personalizado.
+    Faz upload para Bunny CDN e retorna a URL.
+    Usado pelo admin para gerar capas de jornadas e aulas.
+    """
+    import httpx
+    import time
+    import base64
+    from datetime import datetime
+    from config import get_settings
+
+    prompt = data.get("prompt")
+    size = data.get("size", "1792x1024")
+
+    if not prompt or len(prompt.strip()) < 10:
+        raise HTTPException(status_code=400, detail="prompt é obrigatório (mínimo 10 caracteres)")
+
+    # Validar size
+    allowed_sizes = ["1024x1024", "1792x1024", "1024x1792"]
+    if size not in allowed_sizes:
+        size = "1792x1024"
+
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+
+    logger.info(f"[GenerateImage] 🎨 Prompt: {prompt[:80]}...")
+    start_time = time.time()
+
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            dalle_resp = await client.post(
+                "https://api.openai.com/v1/images/generations",
+                headers={
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "dall-e-3",
+                    "prompt": prompt,
+                    "n": 1,
+                    "size": size,
+                    "quality": "standard",
+                    "response_format": "b64_json"
+                }
+            )
+
+            if dalle_resp.status_code != 200:
+                error_detail = dalle_resp.text[:500]
+                logger.error(f"[GenerateImage] ❌ DALL-E HTTP {dalle_resp.status_code}: {error_detail}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Erro na geração de imagem (HTTP {dalle_resp.status_code})"
+                )
+
+            b64_data = dalle_resp.json()["data"][0]["b64_json"]
+            dalle_elapsed = time.time() - start_time
+            logger.info(f"[GenerateImage] ✅ DALL-E OK em {dalle_elapsed:.1f}s")
+
+        # Decodificar e fazer upload para Bunny CDN
+        image_bytes = base64.b64decode(b64_data)
+
+        bunny = get_bunny_storage()
+        if not bunny:
+            raise HTTPException(status_code=503, detail="Upload service not available")
+
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        filename = f"ai_{timestamp}_{uuid.uuid4().hex[:8]}.png"
+        cdn_url = await bunny.upload_file(image_bytes, "generated", filename)
+
+        total_elapsed = time.time() - start_time
+        logger.info(f"[GenerateImage] 🎉 Concluído em {total_elapsed:.1f}s — {cdn_url}")
+
+        return {
+            "success": True,
+            "url": cdn_url,
+            "message": "Image generated successfully"
+        }
+
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        logger.error(f"[GenerateImage] ❌ TIMEOUT após {time.time() - start_time:.1f}s")
+        raise HTTPException(status_code=504, detail="Timeout na geração. Tente novamente.")
+    except Exception as e:
+        logger.error(f"[GenerateImage] ❌ Erro: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar imagem: {str(e)}")
+
