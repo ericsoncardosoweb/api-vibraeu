@@ -249,12 +249,12 @@ async def list_voices():
     """Lista vozes disponíveis para TTS."""
     return {
         "voices": [
-            {"id": "nova", "name": "Nova", "gender": "feminina", "style": "Natural, calorosa", "recommended": True},
-            {"id": "shimmer", "name": "Shimmer", "gender": "feminina", "style": "Suave, calma"},
-            {"id": "alloy", "name": "Alloy", "gender": "neutra", "style": "Balanceada"},
-            {"id": "echo", "name": "Echo", "gender": "masculina", "style": "Grave"},
-            {"id": "fable", "name": "Fable", "gender": "neutra", "style": "Narrativa, britânica"},
-            {"id": "onyx", "name": "Onyx", "gender": "masculina", "style": "Profunda"},
+            {"id": "nova", "name": "Clara", "gender": "feminina", "style": "Natural, calorosa", "recommended": True},
+            {"id": "shimmer", "name": "Sofia", "gender": "feminina", "style": "Suave, calma"},
+            {"id": "alloy", "name": "Ana", "gender": "neutra", "style": "Balanceada"},
+            {"id": "echo", "name": "Rafael", "gender": "masculina", "style": "Grave"},
+            {"id": "fable", "name": "Lucas", "gender": "neutra", "style": "Narrativa"},
+            {"id": "onyx", "name": "Miguel", "gender": "masculina", "style": "Profunda"},
         ],
         "default_voice": VOZ_PADRAO,
         "models": [
