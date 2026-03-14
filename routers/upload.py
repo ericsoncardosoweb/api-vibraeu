@@ -109,6 +109,67 @@ async def upload_status():
     }
 
 
+@router.post("/upload-note-attachment")
+async def upload_note_attachment(
+    file: UploadFile = File(...),
+    user_id: str = Form(...)
+):
+    """
+    Upload note attachment (image or audio) to Bunny Storage.
+    Files go to notes/{user_id}/ folder.
+    """
+    try:
+        # Validate user_id
+        try:
+            uuid.UUID(user_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid user_id format")
+        
+        # Get Bunny service
+        bunny = get_bunny_storage()
+        if not bunny:
+            raise HTTPException(status_code=503, detail="Upload service not available")
+        
+        # Read file
+        file_content = await file.read()
+        
+        # Validate size (max 10MB for audio, 5MB for images)
+        max_size = 10 * 1024 * 1024 if (file.content_type and file.content_type.startswith('audio/')) else 5 * 1024 * 1024
+        if len(file_content) > max_size:
+            raise HTTPException(status_code=400, detail=f"File size must be less than {max_size // (1024*1024)}MB")
+        
+        # Validate content type
+        allowed_types = ['image/', 'audio/']
+        if file.content_type and not any(file.content_type.startswith(t) for t in allowed_types):
+            raise HTTPException(status_code=400, detail="Only image and audio files are allowed")
+        
+        # Generate unique filename
+        from datetime import datetime
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        filename_orig = file.filename or "attachment"
+        ext = filename_orig.split('.')[-1].lower() if '.' in filename_orig else 'bin'
+        filename = f"{timestamp}_{uuid.uuid4().hex[:8]}.{ext}"
+        folder = f"notes/{user_id}"
+        
+        # Upload to Bunny
+        url = await bunny.upload_file(file_content, folder, filename)
+        
+        logger.info(f"Note attachment uploaded for user {user_id}: {url}")
+        
+        return {
+            "success": True,
+            "url": url,
+            "bunny_path": f"{folder}/{filename}",
+            "message": "Attachment uploaded successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Note attachment upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
 @router.post("/upload-story")
 async def upload_story(
     file: UploadFile = File(...),

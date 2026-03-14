@@ -32,6 +32,7 @@ from routers import monthly_reports
 from routers import alinhamento
 from routers import disc
 from routers import story_backgrounds
+from routers import tts
 from scheduler.jobs import start_scheduler, shutdown_scheduler
 from middleware.auth import verify_api_key
 
@@ -332,6 +333,17 @@ app.include_router(
 app.include_router(
     story_backgrounds.router, 
     tags=["Story Backgrounds"],
+    dependencies=[Depends(verify_api_key)]
+)
+
+# ============================================================================
+# Rotas TTS — Text-to-Speech via OpenAI
+# Protegidas por API key
+# ============================================================================
+app.include_router(
+    tts.router, 
+    prefix="/tts",
+    tags=["Text-to-Speech"],
     dependencies=[Depends(verify_api_key)]
 )
 
