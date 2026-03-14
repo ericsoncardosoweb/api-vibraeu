@@ -7,6 +7,7 @@ Usa service_role (bypassa RLS).
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
+from datetime import datetime
 from services.supabase_client import get_supabase_client
 
 router = APIRouter()
@@ -18,10 +19,12 @@ router = APIRouter()
 
 class UserUpdateRequest(BaseModel):
     plano: Optional[str] = None
+    plan_valid_until: Optional[str] = None  # ISO date string (YYYY-MM-DD)
     admin_role: Optional[str] = None
     is_admin: Optional[bool] = None
     centelhas: Optional[int] = None
     creditos: Optional[int] = None
+    bloqueado: Optional[bool] = None
 
 
 class CreditAdjustRequest(BaseModel):
@@ -50,7 +53,7 @@ async def list_users(
         # Ver docs/supabase/SCHEMA_PROFILES.md para referência
         query = supabase.table("profiles") \
             .select(
-                "id, name, email, plano, is_admin, admin_role, "
+                "id, name, email, plano, plan_valid_until, is_admin, admin_role, "
                 "creditos, centelhas, plan_credits_balance, extra_credits_balance, "
                 "created_at, updated_at, asaas_customer_id, "
                 "birth_date, subscription_status",
@@ -161,6 +164,8 @@ async def update_user(user_id: str, data: UserUpdateRequest):
         update_data = {}
         if data.plano is not None:
             update_data["plano"] = data.plano
+        if data.plan_valid_until is not None:
+            update_data["plan_valid_until"] = data.plan_valid_until
         if data.admin_role is not None:
             update_data["admin_role"] = data.admin_role
         if data.is_admin is not None:
